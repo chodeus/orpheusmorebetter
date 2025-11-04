@@ -34,9 +34,9 @@ RUN echo "v${VERSION}" > /app/version.txt \
  && echo "${GIT_BRANCH}" > /app/branch.txt
 
 # Create required directories and user for Unraid
-RUN mkdir -p /config /cache /data /output /torrents \
+RUN mkdir -p /config /data /output /torrents \
  && adduser -D -u 99 -h /config orpheus \
- && chown -R orpheus:orpheus /app /config /cache /data /output /torrents
+ && chown -R orpheus:orpheus /app /config /data /output /torrents
 
 # Copy in the startup script
 COPY start.sh /usr/local/bin/start.sh
