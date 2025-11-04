@@ -20,6 +20,9 @@ WORKDIR /app
 # Copy your repo into the container
 COPY . /app
 
+# ensure the main script is executable
+RUN chmod +x /app/orpheusmorebetter
+
 # Install Python dependencies and your package
 RUN pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir .
