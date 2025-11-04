@@ -13,22 +13,9 @@ This is a Docker implementation of the orpheusmorebetter script.
 
 ## Quick Start
 
-### 1. Create directories
+### 1. Install Container
 
-```bash
-mkdir -p ~/orpheus/config
-mkdir -p ~/orpheus/cache
-```
-
-### 2. Generate config file
-
-```bash
-docker run --rm \
-  -v ~/orpheus/config:/config \
-  chodeus/orpheusmorebetter:latest
-```
-
-### 3. Edit configuration
+### 2. Edit configuration
 
 Edit `~/orpheus/config/.orpheusmorebetter/config` with your Orpheus credentials and paths:
 
@@ -48,7 +35,7 @@ mode = both
 source = OPS
 ```
 
-### 4. Run the container
+### 3. Run the container
 
 ```bash
 docker run --rm \
@@ -108,38 +95,52 @@ docker run --rm ... chodeus/orpheusmorebetter:latest -t 123456
 2. Click **Add Container**
 3. Configure:
 
-**Basic:**
-- **Name**: `orpheusmorebetter`
-- **Repository**: `yourdockerhubusername/orpheusmorebetter:latest`
-- **Network Type**: `bridge`
+**Basic Unraid Template:**
+```<?xml version="1.0"?>
+<Container version="2">
+  <Name>orpheusmorebetter</Name>
+  <Repository>chodeus/orpheusmorebetter:latest</Repository>
+  <Registry>https://hub.docker.com/r/chodeus/orpheusmorebetter</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/CHODEUS/orpheusmorebetter</Support>
+  <Project>https://github.com/CHODEUS/orpheusmorebetter</Project>
+  <Overview>CLI-only container to automatically transcode and upload FLACs to orpheus.network. No web UI or listening ports. Configure via files under the /config mount (HOME).</Overview>
+  <Category>Other</Category>
+  <WebUI/>
+  <Icon/>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled>1762235398</DateInstalled>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Edit the configuration files under the mapped /config path (default: /mnt/user/appdata/orpheusmorebetter) before running. This container expects directories: /config (HOME), /cache, /data, /output and /torrents.</Requires>
+
+  <Config Name="Host Path for /config" Target="/config" Default="/mnt/user/appdata/orpheusmorebetter" Mode="rw" Description="Container HOME and persistent configuration. The app stores ~/.orpheusmorebetter here." Type="Path" Display="always" Required="true" Mask="false">/mnt/cache/appdata/orpheusmorebetter</Config>
+  <Config Name="Host Path for /data (input)" Target="/data" Default="" Mode="rw" Description="Input directory for music files to be processed." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/data/torrents/music/</Config>
+  <Config Name="Host Path for /torrents" Target="/torrents" Default="" Mode="rw" Description="Torrent/watch directory (torrent_dir in config)." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/data/torrents/rips</Config>
+  <Config Name="TZ" Target="TZ" Default="Etc/UTC" Mode="" Description="Timezone (e.g. America/New_York)" Type="Variable" Display="advanced" Required="false" Mask="false">Australia/Perth</Config>
+  <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="Optional umask for created files (if supported by the container)" Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
+  <Config Name="HOME" Target="HOME" Default="/config" Mode="" Description="Container HOME. The image sets HOME=/config so configuration is under this path." Type="Variable" Display="advanced" Required="false" Mask="false">/config</Config>
+
+  <TailscaleStateDir/>
+</Container>
+```
 
 **Volume Mappings:**
 
 | Container Path | Host Path | Access Mode |
 |---------------|-----------|-------------|
-| `/config` | `/mnt/user/appdata/orpheusmorebetter/config` | Read/Write |
-| `/cache` | `/mnt/user/appdata/orpheusmorebetter/cache` | Read/Write |
+| `/config` | `/mnt/user/appdata/orpheusmorebetter` | Read/Write |
 | `/data` | `/mnt/user/path/to/flacs` | Read Only |
 | `/output` | `/mnt/user/path/to/output` | Read/Write |
 | `/torrents` | `/mnt/user/path/to/watch` | Read/Write |
 
 ### 2. Running on Unraid
 
-Since this is a task-based container (not a daemon), you'll run it via terminal or script:
+Since this is a task-based container (not a daemon), you'll run it via container start. The container will stop when it is complete.
 
-```bash
-docker exec orpheusmorebetter python -m orpheusmorebetter
-```
-
-Or create a User Script in Unraid to run it on a schedule.
-
-## Building Locally
-
-```bash
-git clone https://github.com/yourusername/orpheusmorebetter-docker.git
-cd orpheusmorebetter-docker
-docker build -t orpheusmorebetter:latest .
-```
 
 ## Environment Variables
 
@@ -148,7 +149,6 @@ docker build -t orpheusmorebetter:latest .
 ## Volumes
 
 - `/config` - Configuration files
-- `/cache` - Cache files for faster subsequent runs
 - `/data` - Your FLAC source files (read-only recommended)
 - `/output` - Transcode output directory
 - `/torrents` - Torrent watch directory
