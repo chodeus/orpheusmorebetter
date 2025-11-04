@@ -12,7 +12,8 @@ RUN apk add --no-cache \
     sox \
     py3-lxml \
     py3-packaging \
-    py3-pip
+    py3-pip \
+    su-exec
 
 WORKDIR /app
 
@@ -38,8 +39,8 @@ RUN mkdir -p /config /cache /data /output /torrents \
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
-USER orpheus
 ENV HOME=/config
 
-# Use the startup script as the entrypoint
+# Keep the container starting as root so start.sh can chown mount points,
+# then start.sh will drop to user 99 using su-exec.
 ENTRYPOINT ["/usr/local/bin/start.sh"]
