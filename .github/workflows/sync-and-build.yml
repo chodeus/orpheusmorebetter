@@ -4,9 +4,6 @@ on:
   schedule:
     - cron: '0 */6 * * *'  # Check every 6 hours
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   sync:
@@ -54,7 +51,7 @@ jobs:
 
   build:
     needs: sync
-    if: needs.sync.outputs.updated == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    if: needs.sync.outputs.updated == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
