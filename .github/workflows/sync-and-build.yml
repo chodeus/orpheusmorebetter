@@ -3,7 +3,7 @@ name: Sync and Build Container
 on:
   schedule:
     - cron: '0 */6 * * *'  # Check every 6 hours
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger
 
 jobs:
   sync:
@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Sync with upstream
         id: sync
         run: |
@@ -31,7 +31,7 @@ jobs:
             echo "Changes detected, syncing..."
             git merge upstream/master --allow-unrelated-histories -m "chore: sync with upstream repository
             
-            Automatically synced with walkrflocka/orpheusmorebetter"
+Automatically synced with walkrflocka/orpheusmorebetter"
             git push origin master
             echo "updated=true" >> $GITHUB_OUTPUT
           else
