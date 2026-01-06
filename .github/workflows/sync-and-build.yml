@@ -30,8 +30,16 @@ jobs:
           if [ "$LOCAL" != "$REMOTE" ]; then
             echo "Changes detected, syncing..."
             if git merge upstream/master --allow-unrelated-histories -m "chore: sync with upstream repository (auto-sync)"; then
-              git push origin master
-              echo "updated=true" >> $GITHUB_OUTPUT
+              # Check if merge actually created new commits
+              NEW_LOCAL=$(git rev-parse HEAD)
+              if [ "$LOCAL" != "$NEW_LOCAL" ]; then
+                git push origin master
+                echo "updated=true" >> $GITHUB_OUTPUT
+                echo "Successfully synced and pushed changes"
+              else
+                echo "Merge completed but no new commits created"
+                echo "updated=false" >> $GITHUB_OUTPUT
+              fi
             else
               echo "::error::Merge conflict detected. Manual intervention required."
               git merge --abort
