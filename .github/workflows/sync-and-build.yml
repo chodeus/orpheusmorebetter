@@ -5,13 +5,18 @@ on:
     - cron: '0 */6 * * *'  # Run every 6 hours
   workflow_dispatch:  # Allow manual trigger
 
+concurrency:
+  group: sync-and-build
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       updated: ${{ steps.sync.outputs.updated }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -22,22 +27,22 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           git remote add upstream https://github.com/walkrflocka/orpheusmorebetter.git || git remote set-url upstream https://github.com/walkrflocka/orpheusmorebetter.git
-          git fetch upstream
+          git fetch upstream master
           
           LOCAL=$(git rev-parse HEAD)
           REMOTE=$(git rev-parse upstream/master)
           
           if [ "$LOCAL" != "$REMOTE" ]; then
-            echo "Changes detected, syncing..."
+            echo "📊 Commit histories differ, attempting merge..."
             if git merge upstream/master --allow-unrelated-histories -m "chore: sync with upstream repository (auto-sync)"; then
               # Check if merge actually created new commits
               NEW_LOCAL=$(git rev-parse HEAD)
               if [ "$LOCAL" != "$NEW_LOCAL" ]; then
                 git push origin master
                 echo "updated=true" >> $GITHUB_OUTPUT
-                echo "Successfully synced and pushed changes"
+                echo "✅ Successfully synced and pushed changes"
               else
-                echo "Merge completed but no new commits created"
+                echo "ℹ️ No changes needed - content already matches upstream"
                 echo "updated=false" >> $GITHUB_OUTPUT
               fi
             else
@@ -47,13 +52,15 @@ jobs:
               exit 1
             fi
           else
-            echo "Already up to date"
+            echo "✅ Already up to date with upstream"
             echo "updated=false" >> $GITHUB_OUTPUT
           fi
       
       - name: Create sync summary
         if: always()
         run: |
+          SYNC_STATUS="${{ steps.sync.outcome }}"
+          
           if [ "${{ steps.sync.outputs.updated }}" == "true" ]; then
             echo "## ✅ Sync Successful!" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -61,15 +68,27 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Recent commits:" >> $GITHUB_STEP_SUMMARY
             git log --oneline -5 >> $GITHUB_STEP_SUMMARY
+          elif [ "$SYNC_STATUS" == "failure" ]; then
+            echo "## ⚠️ Sync Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Merge conflict detected. Manual intervention required." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please review the logs and resolve conflicts manually." >> $GITHUB_STEP_SUMMARY
           else
             echo "## ℹ️ Already Up to Date" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "No new changes from upstream repository" >> $GITHUB_STEP_SUMMARY
           fi
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::warning::Upstream sync failed. Check the workflow logs for details."
 
   build:
     needs: sync
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: needs.sync.outputs.updated == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout code
@@ -97,7 +116,7 @@ jobs:
             type=sha,prefix=${{ github.ref_name }}-
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
