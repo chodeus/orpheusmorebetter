@@ -2,7 +2,7 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ master ] # Removed 'main'
+    branches: [ master ]
     paths:
       - 'Dockerfile'
       - 'src/**'
@@ -13,7 +13,7 @@ on:
       - '!README.md'
       - '!*.md'
   pull_request:
-    branches: [ master ] # Removed 'main'
+    branches: [ master ]
     paths:
       - 'Dockerfile'
       - 'src/**'
@@ -22,9 +22,14 @@ on:
       - 'package*.json'
   workflow_dispatch: # Allows manual trigger
 
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
     - name: Checkout code
@@ -44,18 +49,36 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: chodeus/orpheusmorebetter # Ensure repository name is lowercase
+        images: chodeus/orpheusmorebetter
         tags: |
           type=raw,value=latest
           type=sha,prefix=${{ github.ref_name }}-
     
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: ./Dockerfile
-        push: true
+        push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=registry,ref=chodeus/orpheusmorebetter:latest
         cache-to: type=inline
+    
+    - name: Create build summary
+      if: success() && github.event_name != 'pull_request'
+      run: |
+        echo "## 🐳 Container Build Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Pushed to Docker Hub:" >> $GITHUB_STEP_SUMMARY
+        echo "- \`chodeus/orpheusmorebetter:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`chodeus/orpheusmorebetter:master-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Create PR build summary
+      if: success() && github.event_name == 'pull_request'
+      run: |
+        echo "## 🐳 Container Build Test Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Docker image built successfully but not pushed (PR build)" >> $GITHUB_STEP_SUMMARY
