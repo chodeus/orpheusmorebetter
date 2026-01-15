@@ -23,5 +23,5 @@ setup(
     url="https://https://github.com/walkrflocka/orpheusmorebetter",
     py_modules=["_version", "tagging", "transcode", "whatapi"],
     scripts=["orpheusmorebetter"],
-    install_requires=["mutagen>=1.20", "mechanize==0.2.5", "requests>=1.0"],
+    install_requires=["mutagen>=1.20", "mechanize==0.4.6", "requests>=1.0"],
 )
