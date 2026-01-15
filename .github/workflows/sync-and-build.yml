@@ -2,8 +2,14 @@ name: Sync and Build Container
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Run every 6 hours
+    - cron: '0 0 * * 0'  # Run every Sunday at midnight UTC
   workflow_dispatch:  # Allow manual trigger
+
+# Restrict workflow permissions to minimum required
+permissions:
+  contents: write  # Required for pushing synced changes
+  actions: read    # Required for workflow execution
+  security-events: write  # Required for uploading security scan results
 
 concurrency:
   group: sync-and-build
@@ -80,16 +86,37 @@ jobs:
             echo "No new changes from upstream repository" >> $GITHUB_STEP_SUMMARY
           fi
       
-      - name: Notify on failure
+      - name: Notify on sync failure
         if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          echo "::warning::Upstream sync failed. Check the workflow logs for details."
+          curl -H "Content-Type: application/json" \
+               -d "{
+                 \"embeds\": [{
+                   \"title\": \"⚠️ Upstream Sync Failed\",
+                   \"description\": \"Merge conflict detected during upstream sync.\n\n[View workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\",
+                   \"color\": 16776960,
+                   \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                   \"footer\": {
+                     \"text\": \"${{ github.repository }}\"
+                   }
+                 }]
+               }" \
+               $DISCORD_WEBHOOK || echo "Discord notification failed"
 
   build:
     needs: sync
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: needs.sync.outputs.updated == 'true' || github.event_name == 'workflow_dispatch'
+    
+    # Restrict build job permissions
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -114,8 +141,10 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,prefix=${{ github.ref_name }}-
+            type=raw,value={{date 'YYYYMMDD'}}
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -125,6 +154,43 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=chodeus/orpheusmorebetter:latest
           cache-to: type=inline
+          provenance: true
+          sbom: true
+          load: true  # Load image locally for scanning
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'chodeus/orpheusmorebetter:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Don't fail build, just report
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Generate vulnerability summary
+        if: always()
+        run: |
+          echo "## 🔍 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract vulnerability counts from Trivy results if available
+          if [ -f trivy-results.sarif ]; then
+            CRITICAL=$(jq '[.runs[].results[] | select(.level=="error")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            HIGH=$(jq '[.runs[].results[] | select(.level=="warning")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            
+            echo "- **Critical vulnerabilities:** $CRITICAL" >> $GITHUB_STEP_SUMMARY
+            echo "- **High vulnerabilities:** $HIGH" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "View detailed results in the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Scan results not available" >> $GITHUB_STEP_SUMMARY
+          fi
       
       - name: Create build summary
         if: success()
@@ -134,3 +200,42 @@ jobs:
           echo "Pushed to Docker Hub:" >> $GITHUB_STEP_SUMMARY
           echo "- \`chodeus/orpheusmorebetter:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`chodeus/orpheusmorebetter:master-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`chodeus/orpheusmorebetter:$(date +%Y%m%d)\`" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    needs: [sync, build]
+    runs-on: ubuntu-latest
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'failure')
+    
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            STATUS="✅ Success"
+            COLOR="3066993"
+            DESCRIPTION="Docker image built and pushed successfully!\n\n🔍 Security scan completed - check GitHub Security tab for results."
+          else
+            STATUS="❌ Failed"
+            COLOR="15158332"
+            DESCRIPTION="Docker build failed. Check the workflow logs for details."
+          fi
+          
+          curl -H "Content-Type: application/json" \
+               -d "{
+                 \"embeds\": [{
+                   \"title\": \"Docker Build Complete\",
+                   \"description\": \"**Status:** $STATUS\n**Image:** \`chodeus/orpheusmorebetter:latest\`\n**Commit:** \`${GITHUB_SHA:0:7}\`\n\n$DESCRIPTION\",
+                   \"color\": $COLOR,
+                   \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+                   \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                   \"footer\": {
+                     \"text\": \"${{ github.repository }}\"
+                   }
+                 }]
+               }" \
+               $DISCORD_WEBHOOK || echo "Discord notification failed (non-critical)"
