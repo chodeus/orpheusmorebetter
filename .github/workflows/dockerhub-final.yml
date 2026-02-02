@@ -3,6 +3,8 @@ name: Final Docker Hub Push (One-Time)
 # Manual trigger only - run once then delete this workflow
 on:
   workflow_dispatch:
+    branches:
+      - dev
 
 jobs:
   push-to-dockerhub:
