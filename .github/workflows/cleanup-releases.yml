@@ -21,10 +21,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Delete old container images (keep last 5)
+      - name: Delete old container images (keep last 5, preserve latest/dev tags)
         uses: actions/delete-package-versions@v5
         with:
           package-name: 'orpheusmorebetter'
           package-type: 'container'
           min-versions-to-keep: 5
-          delete-only-untagged-versions: false
+          ignore-versions: '^(latest|dev)$'
