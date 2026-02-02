@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>orpheusmorebetter</Name>
+  <Repository>ghcr.io/chodeus/orpheusmorebetter:latest</Repository>
+  <Registry>https://github.com/chodeus/orpheusmorebetter/pkgs/container/orpheusmorebetter</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/chodeus/orpheusmorebetter/issues</Support>
+  <Project>https://github.com/walkrflocka/orpheusmorebetter</Project>
+  <ReadMe>https://github.com/chodeus/orpheusmorebetter#readme</ReadMe>
+  <Overview>CLI-only container to automatically transcode FLACs and upload to Orpheus Network.&#xD;
+No web UI or listening ports. Configuration is done via files under /config.&#xD;
+Supports all upstream command-line options including automatic candidate searching,&#xD;
+manual URL processing, and various transcoding modes.&#xD;
+&#xD;
+First run: Edit /config/.orpheusmorebetter/config with your credentials.</Overview>
+  <Category>Productivity: MediaApp:Music</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/chodeus/orpheusmorebetter/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/chodeus/orpheusmorebetter/main/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions (99=nobody on Unraid)" Type="Variable" Display="always" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions (100=users on Unraid)" Type="Variable" Display="always" Required="false" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask (002=group writable)" Type="Variable" Display="always" Required="false" Mask="false">002</Config>
+  <Config Name="TZ" Target="TZ" Default="America/Los_Angeles" Mode="" Description="Timezone (e.g., America/New_York, Europe/London)" Type="Variable" Display="always" Required="false" Mask="false">America/Los_Angeles</Config>
+  <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/orpheusmorebetter" Mode="rw" Description="Config and cache storage" Type="Path" Display="always" Required="true" Mask="false"/>
+  <Config Name="Data" Target="/data/torrents" Default="" Mode="rw" Description="Source FLAC files (match your torrent client's path)" Type="Path" Display="always" Required="true" Mask="false"/>
+</Container>

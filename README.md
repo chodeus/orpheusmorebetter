@@ -198,47 +198,29 @@ This container is well-suited to Unraid because it:
 
 ---
 
-### Unraid Template (XML)
+### Unraid Template
 
-```xml
-<?xml version="1.0"?>
-<Container version="2">
-  <Name>orpheusmorebetter</Name>
-  <Repository>ghcr.io/chodeus/orpheusmorebetter:latest</Repository>
-  <Registry>https://github.com/chodeus/orpheusmorebetter/pkgs/container/orpheusmorebetter</Registry>
-  <Network>bridge</Network>
-  <Privileged>false</Privileged>
+The full Unraid template is available at [`unraid-template.xml`](unraid-template.xml).
 
-  <Support>https://github.com/chodeus/orpheusmorebetter</Support>
-  <Project>https://github.com/walkrflocka/orpheusmorebetter</Project>
-
-  <Overview>
-CLI-only container to automatically transcode FLACs and upload to Orpheus Network.
-Supports all upstream command-line options including automatic candidate searching,
-manual URL processing, and various transcoding modes.
-  </Overview>
-
-  <Category>Other:</Category>
-
-  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID" Type="Variable" Display="always" Required="false" Mask="false">99</Config>
-  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID" Type="Variable" Display="always" Required="false" Mask="false">100</Config>
-  <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask" Type="Variable" Display="always" Required="false" Mask="false">002</Config>
-
-  <Config Name="Config Path" Target="/config" Default="" Mode="rw" Description="Config" Type="Path" Display="always" Required="true" Mask="false"></Config>
-  <Config Name="Data" Target="/data/torrents" Default="" Mode="rw" Description="Source FLAC files" Type="Path" Display="always" Required="true" Mask="false"></Config>
-</Container>
+You can also add it manually in Unraid by using this template URL:
+```
+https://raw.githubusercontent.com/chodeus/orpheusmorebetter/main/unraid-template.xml
 ```
 
 ---
 
 ### Running on Unraid
 
-1. Add the container using the template above
-2. Configure volume paths
-3. Edit `config` with your credentials
-4. Start the container from the Docker tab
-5. Monitor logs in real-time
-6. Container will stop automatically when complete
+1. Add the container using the template URL above (or copy the XML)
+2. Configure volume paths:
+   - **Config Path**: `/mnt/user/appdata/orpheusmorebetter`
+   - **Data**: Your torrent data path (e.g., `/mnt/user/data/torrents`)
+3. Set your timezone (TZ variable)
+4. Start the container - it will create a default config
+5. Edit `/config/.orpheusmorebetter/config` with your credentials
+6. Restart the container
+7. Monitor logs in real-time
+8. Container will stop automatically when complete
 
 ---
 
