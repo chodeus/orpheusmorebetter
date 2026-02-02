@@ -77,6 +77,9 @@ log "─────────────────────────
 log "✅ Starting application as ${USER_NAME} (UID=${PUID}, GID=${PGID})"
 log "───────────────────────────────────────────────────────"
 
+# Change to /config so logs directory is created there (not in /app)
+cd /config
+
 exec su-exec "${PUID}:${PGID}" env \
     HOME=/config \
     PYTHONUNBUFFERED=1 \
