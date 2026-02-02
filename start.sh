@@ -80,6 +80,11 @@ log "─────────────────────────
 # Change to /config so logs directory is created there (not in /app)
 cd /config
 
+# Clean up old logs, keep only the last 5
+if [ -d /config/logs ]; then
+    find /config/logs -name "*.txt" -type f | sort -r | tail -n +6 | xargs rm -f 2>/dev/null || true
+fi
+
 exec su-exec "${PUID}:${PGID}" env \
     HOME=/config \
     PYTHONUNBUFFERED=1 \
