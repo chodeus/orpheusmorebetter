@@ -1,0 +1,158 @@
+name: 'Discord Notification'
+description: 'Send standardized Discord notifications for workflow events'
+author: 'CHODEUS'
+
+inputs:
+  webhook_url:
+    description: 'Discord webhook URL'
+    required: true
+
+  status:
+    description: 'Status (success, failure, warning, info, skipped)'
+    required: true
+
+  title:
+    description: 'Notification title'
+    required: true
+
+  description:
+    description: 'Notification description'
+    required: false
+    default: ''
+
+  commit_sha:
+    description: 'Commit SHA (optional)'
+    required: false
+    default: ''
+
+  image_tag:
+    description: 'Docker image tag (optional)'
+    required: false
+    default: ''
+
+  include_commit_link:
+    description: 'Include commit link in description'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.webhook_url }}" ]; then
+          echo "::warning::Discord webhook URL is empty, skipping notification"
+          exit 0
+        fi
+
+        VALID_STATUSES="success failure info warning skipped"
+        if [[ ! " $VALID_STATUSES " =~ " ${{ inputs.status }} " ]]; then
+          echo "::error::Invalid status '${{ inputs.status }}'. Must be one of: $VALID_STATUSES"
+          exit 1
+        fi
+
+    - name: Send Discord notification
+      shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook_url }}
+        STATUS: ${{ inputs.status }}
+        TITLE: ${{ inputs.title }}
+        DESCRIPTION: ${{ inputs.description }}
+        COMMIT_SHA: ${{ inputs.commit_sha }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        INCLUDE_COMMIT: ${{ inputs.include_commit_link }}
+        GITHUB_REPO: ${{ github.repository }}
+        GITHUB_SHA: ${{ github.sha }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+      run: |
+        # ----------------------------
+        # Emoji + colour by status
+        # ----------------------------
+        case "$STATUS" in
+          success)
+            COLOR="3066993"    # Green
+            EMOJI="✅"
+            ;;
+          failure)
+            COLOR="15158332"   # Red
+            EMOJI="❌"
+            ;;
+          warning)
+            COLOR="15105570"   # Orange
+            EMOJI="⚠️"
+            ;;
+          skipped)
+            COLOR="9807270"    # Grey
+            EMOJI="⏭️"
+            ;;
+          info|*)
+            COLOR="3447003"    # Blue
+            EMOJI="ℹ️"
+            ;;
+        esac
+
+        # ----------------------------
+        # Build description - write directly to temp file for proper newline handling
+        # ----------------------------
+        TEMP_DESC=$(mktemp)
+        echo "$DESCRIPTION" > "$TEMP_DESC"
+
+        # Commit link
+        if [ "$INCLUDE_COMMIT" = "true" ]; then
+          COMMIT="${COMMIT_SHA:-$GITHUB_SHA}"
+          if [ -n "$COMMIT" ]; then
+            SHORT_SHA="${COMMIT:0:7}"
+            echo "" >> "$TEMP_DESC"
+            echo "🔗 **Commit:** [\`$SHORT_SHA\`](https://github.com/$GITHUB_REPO/commit/$COMMIT)" >> "$TEMP_DESC"
+          fi
+        fi
+
+        # Docker image
+        if [ -n "$IMAGE_TAG" ]; then
+          echo "🐳 **Image:** \`$IMAGE_TAG\`" >> "$TEMP_DESC"
+        fi
+
+        # Workflow run link
+        echo "" >> "$TEMP_DESC"
+        echo "▶️ [View workflow run](https://github.com/$GITHUB_REPO/actions/runs/$GITHUB_RUN_ID)" >> "$TEMP_DESC"
+
+        # Read the final description
+        FULL_DESCRIPTION=$(cat "$TEMP_DESC")
+        rm "$TEMP_DESC"
+
+        # ----------------------------
+        # Send Discord embed
+        # ----------------------------
+        PAYLOAD=$(jq -nc \
+          --arg title "${EMOJI} ${TITLE}" \
+          --arg description "$FULL_DESCRIPTION" \
+          --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --arg repo "$GITHUB_REPO" \
+          --argjson color "$COLOR" \
+          '{
+            embeds: [{
+              title: $title,
+              description: $description,
+              color: $color,
+              timestamp: $timestamp,
+              footer: { text: $repo }
+            }]
+          }')
+
+        HTTP_CODE=$(curl -s -o /tmp/discord_response.txt -w "%{http_code}" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          "$WEBHOOK_URL")
+
+        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+          echo "✓ Discord notification sent successfully (HTTP $HTTP_CODE)"
+        else
+          echo "::warning::Discord notification failed (HTTP $HTTP_CODE)"
+          if [ -f /tmp/discord_response.txt ]; then
+            echo "Response:"
+            cat /tmp/discord_response.txt
+          fi
+        fi
+
+        rm -f /tmp/discord_response.txt

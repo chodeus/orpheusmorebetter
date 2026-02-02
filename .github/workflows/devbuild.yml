@@ -1,0 +1,129 @@
+name: Build Dev Image
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'services/**'
+      - 'models/**'
+      - 'tests/**'
+      - '**.py'
+      - 'orpheusmorebetter'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - 'setup.py'
+      - 'start.sh'
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+jobs:
+  build-dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      critical_vulns: ${{ steps.vuln_count.outputs.critical }}
+      high_vulns: ${{ steps.vuln_count.outputs.high }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/chodeus/orpheusmorebetter
+          tags: |
+            type=raw,value=dev
+            type=sha,prefix=dev-
+            type=raw,value=dev-{{date 'YYYYMMDD'}}
+      
+      - name: Build and push dev image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/chodeus/orpheusmorebetter:dev
+          cache-to: type=inline
+          provenance: true
+          sbom: true
+          build-args: |
+            VERSION=${{ github.sha }}
+            GIT_BRANCH=dev
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/chodeus/orpheusmorebetter:dev'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Count vulnerabilities
+        id: vuln_count
+        if: always()
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            CRITICAL=$(jq '[.runs[].results[] | select(.level=="error")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            HIGH=$(jq '[.runs[].results[] | select(.level=="warning")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high=$HIGH" >> $GITHUB_OUTPUT
+          else
+            echo "critical=0" >> $GITHUB_OUTPUT
+            echo "high=0" >> $GITHUB_OUTPUT
+          fi
+
+  log-build:
+    needs: build-dev
+    if: always()
+    uses: ./.github/workflows/logging.yml
+    with:
+      event_type: 'build'
+      status: ${{ needs.build-dev.result }}
+      title: "Manual Dev Build Complete"
+      description: "Manual dev build from push to dev branch.\n\n🔍 Security scan completed - check GitHub Security tab for results."
+      commit_sha: ${{ github.sha }}
+      image_tag: "ghcr.io/chodeus/orpheusmorebetter:dev"
+      include_commit_link: true
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+  log-security:
+    needs: build-dev
+    if: always() && needs.build-dev.result != 'skipped'
+    uses: ./.github/workflows/logging.yml
+    with:
+      event_type: 'security'
+      status: 'info'
+      title: "Security Scan Results (Manual Build)"
+      critical_vulns: ${{ needs.build-dev.outputs.critical_vulns }}
+      high_vulns: ${{ needs.build-dev.outputs.high_vulns }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

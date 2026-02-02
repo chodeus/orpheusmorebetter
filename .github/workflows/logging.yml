@@ -1,0 +1,177 @@
+name: Reusable Logging and Notifications
+
+on:
+  workflow_call:
+    inputs:
+      event_type:
+        description: 'Type of event (sync, build, security)'
+        required: true
+        type: string
+      status:
+        description: 'Status of the operation (success, failure, info, warning, skipped)'
+        required: true
+        type: string
+      title:
+        description: 'Notification title (optional – auto-generated if empty)'
+        required: false
+        type: string
+        default: ''
+      description:
+        description: 'Notification description (optional – auto-generated if empty)'
+        required: false
+        type: string
+        default: ''
+      commit_sha:
+        description: 'Commit SHA for linking'
+        required: false
+        type: string
+        default: ''
+      image_tag:
+        description: 'Docker image tag'
+        required: false
+        type: string
+        default: ''
+      include_commit_link:
+        description: 'Include commit link in notification'
+        required: false
+        type: boolean
+        default: true
+
+      # Sync-specific inputs
+      sync_updated:
+        required: false
+        type: string
+        default: 'false'
+      manual_review_needed:
+        required: false
+        type: string
+        default: 'false'
+      manual_review_files:
+        required: false
+        type: string
+        default: ''
+      deleted_files_detected:
+        required: false
+        type: string
+        default: 'false'
+      deleted_files:
+        required: false
+        type: string
+        default: ''
+
+      # Security scan inputs
+      critical_vulns:
+        required: false
+        type: string
+        default: '0'
+      high_vulns:
+        required: false
+        type: string
+        default: '0'
+
+    secrets:
+      DISCORD_WEBHOOK_URL:
+        required: true
+
+jobs:
+  log-and-notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (for local Discord action)
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # Generate title, description, links & embed colour
+      # --------------------------------------------------
+      - name: Generate notification metadata
+        id: meta
+        env:
+          INPUT_DESCRIPTION: ${{ inputs.description }}
+          INPUT_TITLE: ${{ inputs.title }}
+        run: |
+          REPO_URL="https://github.com/${{ github.repository }}"
+          SHORT_SHA="$(echo "${{ inputs.commit_sha }}" | cut -c1-7)"
+
+          # ----- Title -----
+          if [ -n "$INPUT_TITLE" ]; then
+            TITLE="$INPUT_TITLE"
+          else
+            case "${{ inputs.event_type }}" in
+              sync) BASE="🔄 Repository Sync" ;;
+              build) BASE="🐳 Container Build" ;;
+              security) BASE="🔍 Security Scan" ;;
+              *) BASE="ℹ️ Workflow Notification" ;;
+            esac
+
+            case "${{ inputs.status }}" in
+              success) TITLE="$BASE — Success" ;;
+              failure) TITLE="$BASE — Failed" ;;
+              warning) TITLE="$BASE — Warning" ;;
+              skipped) TITLE="$BASE — Skipped" ;;
+              *) TITLE="$BASE — Info" ;;
+            esac
+          fi
+
+          # ----- Description -----
+          if [ -n "$INPUT_DESCRIPTION" ]; then
+            DESC="$INPUT_DESCRIPTION"
+          else
+            case "${{ inputs.event_type }}" in
+              sync)
+                if [ "${{ inputs.sync_updated }}" = "true" ]; then
+                  DESC="Upstream changes were successfully synced into the repository."
+                elif [ "${{ inputs.status }}" = "failure" ]; then
+                  DESC="The sync operation failed. Review workflow logs for details."
+                else
+                  DESC="No upstream changes were detected."
+                fi
+                ;;
+              build)
+                if [ "${{ inputs.status }}" = "success" ]; then
+                  DESC="Docker image built and published successfully."
+                else
+                  DESC="The container build did not complete successfully."
+                fi
+                ;;
+              security)
+                DESC="Security scan completed. Review vulnerability results."
+                ;;
+              *)
+                DESC="Workflow event notification."
+                ;;
+            esac
+          fi
+
+          # ----- Links -----
+          if [ -n "${{ inputs.commit_sha }}" ]; then
+            DESC="$DESC\n\n🔗 Commit: $REPO_URL/commit/${{ inputs.commit_sha }}"
+          fi
+
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            DESC="$DESC\n🐳 Image: https://github.com/chodeus/orpheusmorebetter/pkgs/container/orpheusmorebetter"
+          fi
+
+          if [ "${{ inputs.event_type }}" = "security" ]; then
+            DESC="$DESC\n🔍 Security: $REPO_URL/security/code-scanning"
+          fi
+
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$DESC" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      # -----------------------------
+      # Discord notification
+      # -----------------------------
+      - name: Send Discord notification
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          status: ${{ inputs.status }}
+          title: ${{ steps.meta.outputs.title }}
+          description: ${{ steps.meta.outputs.description }}
+          color: ${{ steps.meta.outputs.color }}
+          commit_sha: ${{ inputs.commit_sha }}
+          image_tag: ${{ inputs.image_tag }}
+          include_commit_link: true

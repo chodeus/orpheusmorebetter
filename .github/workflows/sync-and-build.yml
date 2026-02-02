@@ -1,0 +1,340 @@
+name: Sync and Build Container
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Run every Sunday at midnight UTC
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build even if no code changes'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+
+concurrency:
+  group: sync-and-build
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      updated: ${{ steps.sync.outputs.updated }}
+      manual_review_needed: ${{ steps.sync.outputs.manual_review_needed }}
+      manual_review_files: ${{ steps.sync.outputs.manual_review_files }}
+      deleted_files_detected: ${{ steps.sync.outputs.deleted_files_detected }}
+      deleted_files: ${{ steps.sync.outputs.deleted_files }}
+      notification_description: ${{ steps.notification.outputs.description }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync with upstream
+        id: sync
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git remote add upstream https://github.com/walkrflocka/orpheusmorebetter.git || git remote set-url upstream https://github.com/walkrflocka/orpheusmorebetter.git
+          git fetch upstream master
+          
+          LOCAL=$(git rev-parse HEAD)
+          REMOTE=$(git rev-parse upstream/master)
+          
+          if [ "$LOCAL" != "$REMOTE" ]; then
+            echo "📊 Changes detected in upstream"
+            
+            UPSTREAM_CHANGES=$(git diff --name-only HEAD upstream/master)
+            echo "Upstream changed files:"
+            echo "$UPSTREAM_CHANGES"
+            
+            AUTO_SYNC_PATTERN='(\.py$|^orpheusmorebetter$|pyproject\.toml|models/|services/|tests/)'
+            EXCLUDE_PATTERN='setup\.py'
+            IGNORE_PATTERN='(^\.dockerignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example\.yaml$|^docker-compose\.yml$|^start\.sh$)'
+            FILES_TO_SYNC=$(echo "$UPSTREAM_CHANGES" | grep -E "$AUTO_SYNC_PATTERN" | grep -vE "$EXCLUDE_PATTERN" || true)
+            SETUP_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^setup\.py$" || true)
+            
+            if [ -n "$FILES_TO_SYNC" ]; then
+              echo "Auto-syncing these files:"
+              echo "$FILES_TO_SYNC"
+              
+              DELETED_FILES=""
+              
+              echo "$FILES_TO_SYNC" | while IFS= read -r file; do
+                if [ -z "$file" ]; then
+                  continue
+                fi
+                
+                if git cat-file -e upstream/master:"$file" 2>/dev/null; then
+                  if ! git checkout upstream/master -- "$file" 2>/dev/null; then
+                    echo "::warning::Could not checkout $file"
+                  fi
+                else
+                  if [ -e "$file" ]; then
+                    echo "⚠️ File/directory deleted upstream: $file"
+                    if [ -z "$DELETED_FILES" ]; then
+                      DELETED_FILES="$file"
+                    else
+                      DELETED_FILES="$DELETED_FILES
+          $file"
+                    fi
+                  fi
+                fi
+              done
+              
+              if [ -n "$DELETED_FILES" ]; then
+                echo "deleted_files_detected=true" >> $GITHUB_OUTPUT
+                echo "deleted_files<<EOF" >> $GITHUB_OUTPUT
+                echo "$DELETED_FILES" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              fi
+              
+              git add -A
+              
+              if git diff --cached --quiet; then
+                echo "ℹ️ No actual changes after sync"
+                echo "updated=false" >> $GITHUB_OUTPUT
+              else
+                git commit -m "chore: auto-sync code files from upstream (excluding setup.py)"
+                
+                NEW_LOCAL=$(git rev-parse HEAD)
+                if [ "$LOCAL" != "$NEW_LOCAL" ]; then
+                  git push origin dev
+                  echo "updated=true" >> $GITHUB_OUTPUT
+                  echo "✅ Auto-synced code files and will trigger build"
+                else
+                  echo "updated=false" >> $GITHUB_OUTPUT
+                fi
+              fi
+            else
+              echo "ℹ️ No auto-syncable files changed"
+              echo "updated=false" >> $GITHUB_OUTPUT
+            fi
+            
+            MANUAL_REVIEW=$(echo "$UPSTREAM_CHANGES" | grep -vE "$AUTO_SYNC_PATTERN" | grep -vE "$IGNORE_PATTERN" || true)
+            
+            if [ -n "$SETUP_CHANGED" ]; then
+              echo "⚠️ setup.py changed upstream - needs manual review"
+              if [ -z "$MANUAL_REVIEW" ]; then
+                MANUAL_REVIEW="setup.py"
+              else
+                MANUAL_REVIEW=$(echo -e "setup.py\n${MANUAL_REVIEW}")
+              fi
+            fi
+            
+            if [ -n "$MANUAL_REVIEW" ]; then
+              echo "⚠️ These files changed but need manual review:"
+              echo "$MANUAL_REVIEW"
+              echo "manual_review_needed=true" >> $GITHUB_OUTPUT
+              echo "manual_review_files<<EOF" >> $GITHUB_OUTPUT
+              echo "$MANUAL_REVIEW" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "✅ Already up to date with upstream"
+            echo "updated=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Build notification description
+        id: notification
+        if: always()
+        env:
+          SYNC_STATUS: ${{ steps.sync.outcome }}
+          UPDATED: ${{ steps.sync.outputs.updated }}
+          MANUAL_REVIEW_NEEDED: ${{ steps.sync.outputs.manual_review_needed }}
+          MANUAL_REVIEW_FILES: ${{ steps.sync.outputs.manual_review_files }}
+          DELETED_FILES_DETECTED: ${{ steps.sync.outputs.deleted_files_detected }}
+          DELETED_FILES: ${{ steps.sync.outputs.deleted_files }}
+        run: |
+          # Start building description
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          
+          if [ "$SYNC_STATUS" == "failure" ]; then
+            echo "Error during upstream sync." >> $GITHUB_OUTPUT
+          elif [ "$UPDATED" == "true" ]; then
+            echo "Successfully synced code files from upstream and pushed to dev branch." >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "🔨 Docker build has been triggered." >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "🔒 setup.py excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
+          else
+            echo "Checked upstream repository - already up to date." >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "No sync or build required." >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "$MANUAL_REVIEW_NEEDED" == "true" ]; then
+            echo "" >> $GITHUB_OUTPUT
+            echo "**Manual Review Required**" >> $GITHUB_OUTPUT
+            echo "Some files changed but need your review:" >> $GITHUB_OUTPUT
+            echo '```' >> $GITHUB_OUTPUT
+            echo "$MANUAL_REVIEW_FILES" >> $GITHUB_OUTPUT
+            echo '```' >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "$DELETED_FILES_DETECTED" == "true" ]; then
+            echo "" >> $GITHUB_OUTPUT
+            echo "**Files Deleted Upstream**" >> $GITHUB_OUTPUT
+            echo "These files/directories were deleted and need manual removal:" >> $GITHUB_OUTPUT
+            echo '```' >> $GITHUB_OUTPUT
+            echo "$DELETED_FILES" >> $GITHUB_OUTPUT
+            echo '```' >> $GITHUB_OUTPUT
+          fi
+          
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  log-sync:
+    needs: sync
+    if: always()
+    uses: ./.github/workflows/logging.yml
+    with:
+      event_type: 'sync'
+      status: ${{ needs.sync.result == 'failure' && 'failure' || (needs.sync.outputs.updated == 'true' && 'success' || 'info') }}
+      title: ${{ needs.sync.result == 'failure' && 'Upstream Sync Failed' || (needs.sync.outputs.updated == 'true' && 'Code Auto-Synced from Upstream' || 'No Changes Detected') }}
+      description: ${{ needs.sync.outputs.notification_description }}
+      sync_updated: ${{ needs.sync.outputs.updated }}
+      manual_review_needed: ${{ needs.sync.outputs.manual_review_needed }}
+      manual_review_files: ${{ needs.sync.outputs.manual_review_files }}
+      deleted_files_detected: ${{ needs.sync.outputs.deleted_files_detected }}
+      deleted_files: ${{ needs.sync.outputs.deleted_files }}
+      include_commit_link: false
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+  build:
+    needs: sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: needs.sync.outputs.updated == 'true' || github.event.inputs.force_build == 'true'
+
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+
+    outputs:
+      critical_vulns: ${{ steps.vuln_count.outputs.critical }}
+      high_vulns: ${{ steps.vuln_count.outputs.high }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+      
+      - name: Ensure we have latest changes
+        run: |
+          git fetch origin dev
+          git reset --hard origin/dev
+          echo "Building from commit: $(git rev-parse HEAD)"
+          echo "Commit message: $(git log -1 --pretty=%B)"
+      
+      - name: Verify orpheusmorebetter script exists
+        run: |
+          if [ ! -f "orpheusmorebetter" ]; then
+            echo "::error::orpheusmorebetter script not found!"
+            exit 1
+          fi
+          echo "✓ orpheusmorebetter script found"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/chodeus/orpheusmorebetter
+          tags: |
+            type=raw,value=dev
+            type=sha,prefix=dev-
+            type=raw,value=dev-{{date 'YYYYMMDD'}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/chodeus/orpheusmorebetter:dev
+          cache-to: type=inline
+          provenance: true
+          sbom: true
+          build-args: |
+            VERSION=${{ github.sha }}
+            GIT_BRANCH=dev
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/chodeus/orpheusmorebetter:dev'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Count vulnerabilities
+        id: vuln_count
+        if: always()
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            CRITICAL=$(jq '[.runs[].results[] | select(.level=="error")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            HIGH=$(jq '[.runs[].results[] | select(.level=="warning")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high=$HIGH" >> $GITHUB_OUTPUT
+          else
+            echo "critical=0" >> $GITHUB_OUTPUT
+            echo "high=0" >> $GITHUB_OUTPUT
+          fi
+
+  log-build:
+    needs: build
+    if: always()
+    uses: ./.github/workflows/logging.yml
+    with:
+      event_type: 'build'
+      status: ${{ needs.build.result }}
+      title: ${{ needs.build.result == 'skipped' && 'Docker Build Skipped (Dev)' || 'Docker Build Complete (Dev)' }}
+      description: ${{ needs.build.result == 'skipped' && 'No code changes detected - build skipped.' || 'Automated build from upstream sync. Security scan completed - check GitHub Security tab for results.' }}
+      commit_sha: ${{ github.sha }}
+      image_tag: "ghcr.io/chodeus/orpheusmorebetter:dev"
+      include_commit_link: true
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+  log-security:
+    needs: build
+    if: always() && needs.build.result != 'skipped'
+    uses: ./.github/workflows/logging.yml
+    with:
+      event_type: 'security'
+      status: 'info'
+      title: "Security Scan Results"
+      critical_vulns: ${{ needs.build.outputs.critical_vulns }}
+      high_vulns: ${{ needs.build.outputs.high_vulns }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

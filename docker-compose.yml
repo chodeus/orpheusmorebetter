@@ -1,0 +1,20 @@
+services:
+  orpheusmorebetter:
+    image: ghcr.io/chodeus/orpheusmorebetter:latest
+    container_name: orpheusmorebetter
+    hostname: orpheusmorebetter
+    stdin_open: true
+    tty: true
+    environment:
+      - PUID=99
+      - PGID=100
+      - UMASK=002
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./config:/config
+      - /path/to/your/data:/data/torrents
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
