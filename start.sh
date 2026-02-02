@@ -60,8 +60,25 @@ for cmd in flac lame sox mktorrent; do
 done
 
 if [ ! -f /config/.orpheusmorebetter/config ]; then
-    log "ℹ️  Config file not found. It will be created on first run."
-    log "   Please edit /config/.orpheusmorebetter/config with your credentials."
+    log "ℹ️  Config file not found. Creating default config..."
+    cat > /config/.orpheusmorebetter/config << 'CONFIGEOF'
+[orpheus]
+username =
+password =
+data_dir = /data/torrents
+output_dir = /data/torrents
+torrent_dir = /data/torrents
+formats = flac, v0, 320
+media = sacd, soundboard, web, dvd, cd, dat, vinyl, blu-ray
+24bit_behaviour = 0
+tracker = https://home.opsfet.ch/
+api = https://orpheus.network/
+mode = both
+source = OPS
+CONFIGEOF
+    log "📝 Default config created at /config/.orpheusmorebetter/config"
+    log "⚠️  Please edit with your credentials and restart the container!"
+    exit 0
 else
     if grep -qE "^username\s*=\s*$" /config/.orpheusmorebetter/config 2>/dev/null; then
         log "⚠️  Username is empty in config - please add your credentials!"

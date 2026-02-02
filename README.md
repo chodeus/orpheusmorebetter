@@ -1,5 +1,10 @@
 # orpheusmorebetter Docker
 
+[![Build Status](https://github.com/chodeus/orpheusmorebetter/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/chodeus/orpheusmorebetter/actions/workflows/docker-publish.yml)
+[![Upstream Sync](https://github.com/chodeus/orpheusmorebetter/actions/workflows/sync-and-build.yml/badge.svg)](https://github.com/chodeus/orpheusmorebetter/actions/workflows/sync-and-build.yml)
+[![GitHub Container Registry](https://img.shields.io/badge/GHCR-chodeus%2Forpheusmorebetter-blue?logo=github)](https://github.com/chodeus/orpheusmorebetter/pkgs/container/orpheusmorebetter)
+[![License](https://img.shields.io/github/license/chodeus/orpheusmorebetter)](LICENSE)
+
 This is a vibe coded Docker container for **orpheusmorebetter**, an automatic transcode and upload helper for **OPS**.
 
 This repository provides a Dockerized wrapper around the upstream
