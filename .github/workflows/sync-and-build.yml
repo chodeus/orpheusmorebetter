@@ -58,7 +58,7 @@ jobs:
             
             AUTO_SYNC_PATTERN='(\.py$|^orpheusmorebetter$|pyproject\.toml|models/|services/|tests/)'
             EXCLUDE_PATTERN='setup\.py'
-            IGNORE_PATTERN='(^\.dockerignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example\.yaml$|^docker-compose\.yml$|^start\.sh$)'
+            IGNORE_PATTERN='(^\.dockerignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example$|^docker-compose\.yml$|^start\.sh$)'
             FILES_TO_SYNC=$(echo "$UPSTREAM_CHANGES" | grep -E "$AUTO_SYNC_PATTERN" | grep -vE "$EXCLUDE_PATTERN" || true)
             SETUP_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^setup\.py$" || true)
             

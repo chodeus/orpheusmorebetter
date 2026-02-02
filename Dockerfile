@@ -35,6 +35,7 @@ RUN apk add --no-cache \
     shadow \
     su-exec \
     tini \
+    tzdata \
     && rm -rf /var/cache/apk/* /tmp/*
 
 WORKDIR /app

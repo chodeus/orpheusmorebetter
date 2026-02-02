@@ -4,6 +4,12 @@ set -e
 PUID=${PUID:-99}
 PGID=${PGID:-100}
 UMASK=${UMASK:-002}
+TZ=${TZ:-UTC}
+
+# Set timezone if specified
+if [ -n "$TZ" ] && [ -f "/usr/share/zoneinfo/$TZ" ]; then
+    export TZ
+fi
 
 log() {
     printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >&2
