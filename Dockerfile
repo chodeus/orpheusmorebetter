@@ -42,6 +42,7 @@ WORKDIR /app
 
 COPY --from=builder /wheels /tmp/wheels
 RUN pip install --no-cache-dir --no-compile /tmp/wheels/* \
+    && pip uninstall -y setuptools wheel pip 2>/dev/null || true \
     && rm -rf /tmp/wheels \
     && rm -rf /root/.cache/pip
 
