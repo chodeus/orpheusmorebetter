@@ -29,7 +29,6 @@ First run: Edit /config/.orpheusmorebetter/config with your credentials.</Overvi
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions (99=nobody on Unraid)" Type="Variable" Display="always" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions (100=users on Unraid)" Type="Variable" Display="always" Required="false" Mask="false">100</Config>
   <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask (002=group writable)" Type="Variable" Display="always" Required="false" Mask="false">002</Config>
-  <Config Name="TZ" Target="TZ" Default="America/Los_Angeles" Mode="" Description="Timezone (e.g., America/New_York, Europe/London)" Type="Variable" Display="always" Required="false" Mask="false">America/Los_Angeles</Config>
   <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/orpheusmorebetter" Mode="rw" Description="Config and cache storage" Type="Path" Display="always" Required="true" Mask="false"/>
   <Config Name="Data" Target="/data/torrents" Default="" Mode="rw" Description="Source FLAC files (match your torrent client's path)" Type="Path" Display="always" Required="true" Mask="false"/>
 </Container>
