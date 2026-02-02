@@ -283,7 +283,7 @@ jobs:
             GIT_BRANCH=dev
       
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: 'ghcr.io/chodeus/orpheusmorebetter:dev'
           format: 'sarif'
@@ -292,7 +292,7 @@ jobs:
           exit-code: '0'
       
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
