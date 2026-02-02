@@ -16,12 +16,18 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    timeout-minutes: 30
+    outputs:
+      critical_vulns: ${{ steps.vuln_count.outputs.critical }}
+      high_vulns: ${{ steps.vuln_count.outputs.high }}
 
     steps:
       - name: Checkout repository
@@ -51,10 +57,12 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -63,8 +71,68 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
           build-args: |
             VERSION=${{ github.ref_name }}
             GIT_BRANCH=${{ github.ref_name }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
+
+      - name: Run Trivy vulnerability scanner
+        if: github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: github.event_name != 'pull_request' && always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Count vulnerabilities
+        id: vuln_count
+        if: github.event_name != 'pull_request' && always()
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            CRITICAL=$(jq '[.runs[].results[] | select(.level=="error")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            HIGH=$(jq '[.runs[].results[] | select(.level=="warning")] | length' trivy-results.sarif 2>/dev/null || echo "0")
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high=$HIGH" >> $GITHUB_OUTPUT
+          else
+            echo "critical=0" >> $GITHUB_OUTPUT
+            echo "high=0" >> $GITHUB_OUTPUT
+          fi
+
+  log-build:
+    needs: build-and-push
+    if: always() && github.event_name != 'pull_request'
+    uses: ./.github/workflows/logging.yml
+    with:
+      event_type: 'build'
+      status: ${{ needs.build-and-push.result }}
+      title: "Docker Build Complete (${{ github.ref_name }})"
+      description: "Build triggered by push to ${{ github.ref_name }}.\n\n🔍 Security scan completed - check GitHub Security tab for results."
+      commit_sha: ${{ github.sha }}
+      image_tag: "ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
+      include_commit_link: true
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+  log-security:
+    needs: build-and-push
+    if: always() && github.event_name != 'pull_request' && needs.build-and-push.result != 'skipped'
+    uses: ./.github/workflows/logging.yml
+    with:
+      event_type: 'security'
+      status: 'info'
+      title: "Security Scan Results (${{ github.ref_name }})"
+      critical_vulns: ${{ needs.build-and-push.outputs.critical_vulns }}
+      high_vulns: ${{ needs.build-and-push.outputs.high_vulns }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
