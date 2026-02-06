@@ -171,7 +171,6 @@ jobs:
           status: ${{ inputs.status }}
           title: ${{ steps.meta.outputs.title }}
           description: ${{ steps.meta.outputs.description }}
-          color: ${{ steps.meta.outputs.color }}
           commit_sha: ${{ inputs.commit_sha }}
           image_tag: ${{ inputs.image_tag }}
           include_commit_link: true
