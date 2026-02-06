@@ -91,8 +91,6 @@ chown -R "${PUID}:${PGID}" /config 2>/dev/null || true
 umask "${UMASK}"
 
 log "───────────────────────────────────────────────────────"
-log "✅ Starting application as ${USER_NAME} (UID=${PUID}, GID=${PGID})"
-log "───────────────────────────────────────────────────────"
 
 # Change to /config so logs directory is created there (not in /app)
 cd /config
@@ -102,8 +100,47 @@ if [ -d /config/logs ]; then
     find /config/logs -name "*.txt" -type f | sort -r | tail -n +6 | xargs rm -f 2>/dev/null || true
 fi
 
-exec su-exec "${PUID}:${PGID}" env \
+# Create a convenience wrapper so console users can just type:
+#   orpheusmorebetter -m both -t 123456
+# instead of the full su-exec/python3 path
+cat > /usr/local/bin/orpheusmorebetter << WRAPEOF
+#!/bin/sh
+cd /config
+exec su-exec ${PUID}:${PGID} env \
     HOME=/config \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    python3 -u /app/orpheusmorebetter "$@"
+    python3 -u /app/orpheusmorebetter "\$@"
+WRAPEOF
+chmod +x /usr/local/bin/orpheusmorebetter
+
+# Strip the command name if passed (e.g. Post Arguments: "orpheusmorebetter -t 123456")
+# since start.sh already calls the python script directly
+if [ "$1" = "orpheusmorebetter" ]; then
+    shift
+fi
+
+if [ $# -gt 0 ]; then
+    # Post Arguments provided — run the command and exit
+    log "✅ Running as ${USER_NAME} (UID=${PUID}, GID=${PGID})"
+    log "───────────────────────────────────────────────────────"
+    exec su-exec "${PUID}:${PGID}" env \
+        HOME=/config \
+        PYTHONUNBUFFERED=1 \
+        PYTHONDONTWRITEBYTECODE=1 \
+        python3 -u /app/orpheusmorebetter "$@"
+else
+    # No arguments — idle and wait for console commands
+    log "✅ Container ready — idle mode (UID=${PUID}, GID=${PGID})"
+    log "───────────────────────────────────────────────────────"
+    log ""
+    log "To run commands, open the Unraid console and type:"
+    log "  orpheusmorebetter              (full scan using config mode)"
+    log "  orpheusmorebetter -m snatched  (scan snatched only)"
+    log "  orpheusmorebetter -t 123456    (with TOTP code)"
+    log "  orpheusmorebetter --help       (see all options)"
+    log ""
+    log "═══════════════════════════════════════════════════════"
+    # Keep container alive
+    exec tail -f /dev/null
+fi
