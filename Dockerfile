@@ -83,5 +83,5 @@ ENV PUID=99 \
 
 VOLUME ["/config"]
 
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/app/start.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "/app/start.sh"]
+CMD []
