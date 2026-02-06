@@ -134,7 +134,7 @@ else
     log "✅ Container ready — idle mode (UID=${PUID}, GID=${PGID})"
     log "───────────────────────────────────────────────────────"
     log ""
-    log "To run commands, open the Unraid console and type:"
+    log "To run commands, open the OMB container console or enter Post Arguments and type:"
     log "  orpheusmorebetter              (full scan using config mode)"
     log "  orpheusmorebetter -m snatched  (scan snatched only)"
     log "  orpheusmorebetter -t 123456    (with TOTP code)"
