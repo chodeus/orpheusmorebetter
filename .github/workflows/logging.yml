@@ -145,15 +145,19 @@ jobs:
 
           # ----- Links -----
           if [ -n "${{ inputs.commit_sha }}" ]; then
-            DESC="$DESC\n\n🔗 Commit: $REPO_URL/commit/${{ inputs.commit_sha }}"
+            DESC="$DESC
+
+🔗 Commit: $REPO_URL/commit/${{ inputs.commit_sha }}"
           fi
 
           if [ -n "${{ inputs.image_tag }}" ]; then
-            DESC="$DESC\n🐳 Image: https://github.com/chodeus/orpheusmorebetter/pkgs/container/orpheusmorebetter"
+            DESC="$DESC
+🐳 Image: https://github.com/chodeus/orpheusmorebetter/pkgs/container/orpheusmorebetter"
           fi
 
           if [ "${{ inputs.event_type }}" = "security" ]; then
-            DESC="$DESC\n🔍 Security: $REPO_URL/security/code-scanning"
+            DESC="$DESC
+🔍 Security: $REPO_URL/security/code-scanning"
           fi
 
           echo "title=$TITLE" >> $GITHUB_OUTPUT

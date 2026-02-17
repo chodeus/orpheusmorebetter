@@ -2,7 +2,7 @@ name: Sync and Build Container
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Run every Sunday at midnight UTC
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
   workflow_dispatch:
     inputs:
       force_build:
@@ -30,6 +30,8 @@ jobs:
       manual_review_files: ${{ steps.sync.outputs.manual_review_files }}
       deleted_files_detected: ${{ steps.sync.outputs.deleted_files_detected }}
       deleted_files: ${{ steps.sync.outputs.deleted_files }}
+      diff_stats: ${{ steps.sync.outputs.diff_stats }}
+      synced_files: ${{ steps.sync.outputs.synced_files }}
       notification_description: ${{ steps.notification.outputs.description }}
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +67,50 @@ jobs:
             if [ -n "$FILES_TO_SYNC" ]; then
               echo "Auto-syncing these files:"
               echo "$FILES_TO_SYNC"
-              
+
+              # Only sync files that exist in upstream (ignore fork-only files)
+              FILTERED_FILES=""
+              while IFS= read -r f; do
+                [ -z "$f" ] && continue
+                if git cat-file -e upstream/master:"$f" 2>/dev/null; then
+                  if [ -z "$FILTERED_FILES" ]; then
+                    FILTERED_FILES="$f"
+                  else
+                    FILTERED_FILES="$FILTERED_FILES
+$f"
+                  fi
+                else
+                  echo "ℹ️ Skipping fork-only file: $f"
+                fi
+              done <<< "$FILES_TO_SYNC"
+              FILES_TO_SYNC="$FILTERED_FILES"
+
+              if [ -z "$FILES_TO_SYNC" ]; then
+                echo "ℹ️ No auto-syncable files changed (all were fork-only)"
+                echo "updated=false" >> $GITHUB_OUTPUT
+              else
+
+              # Capture diff stats and full diff before overwriting files
+              DIFF_STATS=""
+              while IFS= read -r f; do
+                [ -z "$f" ] && continue
+                FILE_STAT=$(git diff --stat HEAD upstream/master -- "$f")
+                if [ -n "$FILE_STAT" ]; then
+                  DIFF_STATS="${DIFF_STATS}${FILE_STAT}
+"
+                fi
+              done <<< "$FILES_TO_SYNC"
+              echo "diff_stats<<EOF" >> $GITHUB_OUTPUT
+              echo "$DIFF_STATS" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+
+              echo "synced_files<<EOF" >> $GITHUB_OUTPUT
+              echo "$FILES_TO_SYNC" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+
+              mkdir -p /tmp/sync-artifacts
+              echo "$FILES_TO_SYNC" | while IFS= read -r f; do [ -n "$f" ] && git diff HEAD upstream/master -- "$f"; done > /tmp/sync-artifacts/upstream-diff.patch
+
               DELETED_FILES_TMP=$(mktemp)
 
               echo "$FILES_TO_SYNC" | while IFS= read -r file; do
@@ -112,6 +157,7 @@ jobs:
                   echo "updated=false" >> $GITHUB_OUTPUT
                 fi
               fi
+              fi
             else
               echo "ℹ️ No auto-syncable files changed"
               echo "updated=false" >> $GITHUB_OUTPUT
@@ -141,6 +187,14 @@ jobs:
             echo "updated=false" >> $GITHUB_OUTPUT
           fi
       
+      - name: Upload diff artifact
+        if: steps.sync.outputs.updated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-diff
+          path: /tmp/sync-artifacts/upstream-diff.patch
+          retention-days: 30
+
       - name: Build notification description
         id: notification
         if: always()
@@ -151,6 +205,8 @@ jobs:
           MANUAL_REVIEW_FILES: ${{ steps.sync.outputs.manual_review_files }}
           DELETED_FILES_DETECTED: ${{ steps.sync.outputs.deleted_files_detected }}
           DELETED_FILES: ${{ steps.sync.outputs.deleted_files }}
+          DIFF_STATS: ${{ steps.sync.outputs.diff_stats }}
+          SYNCED_FILES: ${{ steps.sync.outputs.synced_files }}
         run: |
           # Start building description
           echo "description<<EOF" >> $GITHUB_OUTPUT
@@ -160,7 +216,21 @@ jobs:
           elif [ "$UPDATED" == "true" ]; then
             echo "Successfully synced code files from upstream and pushed to dev branch." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
+            if [ -n "$SYNCED_FILES" ]; then
+              echo "**Synced Files:**" >> $GITHUB_OUTPUT
+              echo '```' >> $GITHUB_OUTPUT
+              echo "$SYNCED_FILES" >> $GITHUB_OUTPUT
+              echo '```' >> $GITHUB_OUTPUT
+            fi
+            if [ -n "$DIFF_STATS" ]; then
+              echo "**Changes:**" >> $GITHUB_OUTPUT
+              echo '```' >> $GITHUB_OUTPUT
+              echo "$DIFF_STATS" >> $GITHUB_OUTPUT
+              echo '```' >> $GITHUB_OUTPUT
+            fi
+            echo "" >> $GITHUB_OUTPUT
             echo "🔨 Docker build has been triggered." >> $GITHUB_OUTPUT
+            echo "📎 Full diff available as workflow artifact." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
             echo "🔒 setup.py excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
           else
@@ -191,7 +261,7 @@ jobs:
 
   log-sync:
     needs: sync
-    if: always()
+    if: always() && (needs.sync.result == 'failure' || needs.sync.outputs.updated == 'true' || needs.sync.outputs.manual_review_needed == 'true' || needs.sync.outputs.deleted_files_detected == 'true')
     uses: ./.github/workflows/logging.yml
     with:
       event_type: 'sync'
@@ -315,7 +385,7 @@ jobs:
 
   log-build:
     needs: build
-    if: always()
+    if: always() && needs.build.result != 'skipped'
     uses: ./.github/workflows/logging.yml
     with:
       event_type: 'build'
