@@ -76,8 +76,7 @@ jobs:
                   if [ -z "$FILTERED_FILES" ]; then
                     FILTERED_FILES="$f"
                   else
-                    FILTERED_FILES="$FILTERED_FILES
-$f"
+                    FILTERED_FILES="$(printf '%s\n%s' "$FILTERED_FILES" "$f")"
                   fi
                 else
                   echo "ℹ️ Skipping fork-only file: $f"
@@ -96,8 +95,7 @@ $f"
                 [ -z "$f" ] && continue
                 FILE_STAT=$(git diff --stat HEAD upstream/master -- "$f")
                 if [ -n "$FILE_STAT" ]; then
-                  DIFF_STATS="${DIFF_STATS}${FILE_STAT}
-"
+                  DIFF_STATS="$(printf '%s%s\n' "$DIFF_STATS" "$FILE_STAT")"
                 fi
               done <<< "$FILES_TO_SYNC"
               echo "diff_stats<<EOF" >> $GITHUB_OUTPUT
