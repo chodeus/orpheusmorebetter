@@ -14,12 +14,14 @@ jobs:
 
     steps:
       - name: Delete old releases (keep last 5)
-        uses: dev-drprasad/delete-older-releases@v0.3.4
-        with:
-          keep_latest: 5
-          delete_tags: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo ${{ github.repository }} --limit 100 --json tagName -q '.[].tagName' | tail -n +6 | while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "Deleting release: $tag"
+            gh release delete "$tag" --repo ${{ github.repository }} -y --cleanup-tag
+          done
 
       - name: Delete old container images (keep last 5, preserve latest/dev tags)
         uses: actions/delete-package-versions@v5

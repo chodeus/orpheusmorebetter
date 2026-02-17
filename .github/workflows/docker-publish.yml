@@ -117,7 +117,7 @@ jobs:
       event_type: 'build'
       status: ${{ needs.build-and-push.result }}
       title: "Docker Build Complete (${{ github.ref_name }})"
-      description: "Build triggered by push to ${{ github.ref_name }}.\n\n🔍 Security scan completed - check GitHub Security tab for results."
+      description: "Build triggered by push to ${{ github.ref_name }}."
       commit_sha: ${{ github.sha }}
       image_tag: "ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
       include_commit_link: true

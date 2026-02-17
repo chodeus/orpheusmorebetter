@@ -6,8 +6,7 @@ RUN apk add --no-cache \
     linux-headers \
     libxml2-dev \
     libxslt-dev \
-    openssl-dev \
-    && rm -rf /var/cache/apk/*
+    openssl-dev
 
 WORKDIR /build
 
@@ -36,7 +35,7 @@ RUN apk add --no-cache \
     su-exec \
     tini \
     tzdata \
-    && rm -rf /var/cache/apk/* /tmp/*
+    && rm -rf /tmp/*
 
 WORKDIR /app
 

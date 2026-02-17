@@ -143,20 +143,10 @@ jobs:
             esac
           fi
 
-          # ----- Links -----
-          if [ -n "${{ inputs.commit_sha }}" ]; then
-            DESC="$DESC
-
-🔗 Commit: $REPO_URL/commit/${{ inputs.commit_sha }}"
-          fi
-
-          if [ -n "${{ inputs.image_tag }}" ]; then
-            DESC="$DESC
-🐳 Image: https://github.com/chodeus/orpheusmorebetter/pkgs/container/orpheusmorebetter"
-          fi
-
+          # ----- Links (commit & image links are added by discord-notify action) -----
           if [ "${{ inputs.event_type }}" = "security" ]; then
             DESC="$DESC
+
 🔍 Security: $REPO_URL/security/code-scanning"
           fi
 
@@ -177,4 +167,4 @@ jobs:
           description: ${{ steps.meta.outputs.description }}
           commit_sha: ${{ inputs.commit_sha }}
           image_tag: ${{ inputs.image_tag }}
-          include_commit_link: true
+          include_commit_link: ${{ inputs.include_commit_link }}

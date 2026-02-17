@@ -53,6 +53,7 @@ runs:
         fi
 
     - name: Send Discord notification
+      if: ${{ inputs.webhook_url != '' }}
       shell: bash
       env:
         WEBHOOK_URL: ${{ inputs.webhook_url }}
