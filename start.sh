@@ -85,8 +85,10 @@ else
     fi
 fi
 
-log "Setting permissions..."
-chown -R "${PUID}:${PGID}" /config 2>/dev/null || true
+if [ "$(stat -c '%u:%g' /config)" != "${PUID}:${PGID}" ]; then
+    log "Setting permissions..."
+    chown -R "${PUID}:${PGID}" /config 2>/dev/null || true
+fi
 
 umask "${UMASK}"
 

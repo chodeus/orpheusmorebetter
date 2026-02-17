@@ -66,13 +66,13 @@ jobs:
               echo "Auto-syncing these files:"
               echo "$FILES_TO_SYNC"
               
-              DELETED_FILES=""
-              
+              DELETED_FILES_TMP=$(mktemp)
+
               echo "$FILES_TO_SYNC" | while IFS= read -r file; do
                 if [ -z "$file" ]; then
                   continue
                 fi
-                
+
                 if git cat-file -e upstream/master:"$file" 2>/dev/null; then
                   if ! git checkout upstream/master -- "$file" 2>/dev/null; then
                     echo "::warning::Could not checkout $file"
@@ -80,16 +80,14 @@ jobs:
                 else
                   if [ -e "$file" ]; then
                     echo "⚠️ File/directory deleted upstream: $file"
-                    if [ -z "$DELETED_FILES" ]; then
-                      DELETED_FILES="$file"
-                    else
-                      DELETED_FILES="$DELETED_FILES
-          $file"
-                    fi
+                    echo "$file" >> "$DELETED_FILES_TMP"
                   fi
                 fi
               done
-              
+
+              DELETED_FILES=$(cat "$DELETED_FILES_TMP")
+              rm -f "$DELETED_FILES_TMP"
+
               if [ -n "$DELETED_FILES" ]; then
                 echo "deleted_files_detected=true" >> $GITHUB_OUTPUT
                 echo "deleted_files<<EOF" >> $GITHUB_OUTPUT
@@ -245,6 +243,9 @@ jobs:
           fi
           echo "✓ orpheusmorebetter script found"
       
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -271,6 +272,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
