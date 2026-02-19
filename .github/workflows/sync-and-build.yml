@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       updated: ${{ steps.sync.outputs.updated }}
+      commit_sha: ${{ steps.sync.outputs.commit_sha }}
       manual_review_needed: ${{ steps.sync.outputs.manual_review_needed }}
       manual_review_files: ${{ steps.sync.outputs.manual_review_files }}
       deleted_files_detected: ${{ steps.sync.outputs.deleted_files_detected }}
@@ -150,7 +151,12 @@ jobs:
                 if [ "$LOCAL" != "$NEW_LOCAL" ]; then
                   git push origin dev
                   echo "updated=true" >> $GITHUB_OUTPUT
-                  echo "✅ Auto-synced code files and will trigger build"
+                  echo "commit_sha=$NEW_LOCAL" >> $GITHUB_OUTPUT
+                  echo "✅ Auto-synced code files to dev"
+
+                  # Also update main branch with the same sync commit
+                  git push origin HEAD:refs/heads/main
+                  echo "✅ Also updated main branch"
                 else
                   echo "updated=false" >> $GITHUB_OUTPUT
                 fi
@@ -212,7 +218,7 @@ jobs:
           if [ "$SYNC_STATUS" == "failure" ]; then
             echo "Error during upstream sync." >> $GITHUB_OUTPUT
           elif [ "$UPDATED" == "true" ]; then
-            echo "Successfully synced code files from upstream and pushed to dev branch." >> $GITHUB_OUTPUT
+            echo "Successfully synced code files from upstream and pushed to dev and main branches." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
             if [ -n "$SYNCED_FILES" ]; then
               echo "**Synced Files:**" >> $GITHUB_OUTPUT
@@ -330,6 +336,7 @@ jobs:
         with:
           images: ghcr.io/chodeus/orpheusmorebetter
           tags: |
+            type=raw,value=latest
             type=raw,value=dev
             type=sha,prefix=dev-
             type=raw,value=dev-{{date 'YYYYMMDD'}}
@@ -344,12 +351,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/chodeus/orpheusmorebetter:dev
+          cache-from: type=registry,ref=ghcr.io/chodeus/orpheusmorebetter:latest
           cache-to: type=inline
           provenance: true
           sbom: true
           build-args: |
-            VERSION=${{ github.sha }}
+            VERSION=${{ needs.sync.outputs.commit_sha || github.sha }}
             GIT_BRANCH=dev
       
       - name: Run Trivy vulnerability scanner
@@ -382,16 +389,16 @@ jobs:
           fi
 
   log-build:
-    needs: build
+    needs: [sync, build]
     if: always() && needs.build.result != 'skipped'
     uses: ./.github/workflows/logging.yml
     with:
       event_type: 'build'
       status: ${{ needs.build.result }}
-      title: ${{ needs.build.result == 'skipped' && 'Docker Build Skipped (Dev)' || 'Docker Build Complete (Dev)' }}
+      title: ${{ needs.build.result == 'skipped' && 'Docker Build Skipped' || 'Docker Build Complete' }}
       description: ${{ needs.build.result == 'skipped' && 'No code changes detected - build skipped.' || 'Automated build from upstream sync. Security scan completed - check GitHub Security tab for results.' }}
-      commit_sha: ${{ github.sha }}
-      image_tag: "ghcr.io/chodeus/orpheusmorebetter:dev"
+      commit_sha: ${{ needs.sync.outputs.commit_sha || github.sha }}
+      image_tag: "ghcr.io/chodeus/orpheusmorebetter:latest"
       include_commit_link: true
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
