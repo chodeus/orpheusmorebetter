@@ -155,7 +155,7 @@ jobs:
                   echo "✅ Auto-synced code files to dev"
 
                   # Also update main branch with the same sync commit
-                  git push origin HEAD:refs/heads/main
+                  git push --force origin HEAD:refs/heads/main
                   echo "✅ Also updated main branch"
                 else
                   echo "updated=false" >> $GITHUB_OUTPUT
