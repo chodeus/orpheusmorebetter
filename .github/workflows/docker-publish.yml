@@ -7,11 +7,35 @@ on:
       - dev
     tags:
       - 'v*'
+    paths:
+      - 'Dockerfile'
+      - 'start.sh'
+      - 'requirements.txt'
+      - 'setup.py'
+      - 'pyproject.toml'
+      - '_version.py'
+      - 'orpheusmorebetter'
+      - 'models/**'
+      - 'services/**'
   pull_request:
     branches:
       - main
       - dev
+    paths:
+      - 'Dockerfile'
+      - 'start.sh'
+      - 'requirements.txt'
+      - 'setup.py'
+      - 'pyproject.toml'
+      - '_version.py'
+      - 'orpheusmorebetter'
+      - 'models/**'
+      - 'services/**'
   workflow_dispatch:
+
+concurrency:
+  group: docker-build-${{ github.ref_name }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
