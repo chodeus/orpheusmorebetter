@@ -1,4 +1,4 @@
-name: Reusable Logging and Notifications
+name: "Discord Notifications (reusable)"
 
 on:
   workflow_call:

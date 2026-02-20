@@ -1,4 +1,4 @@
-name: Sync and Build Container
+name: "Upstream Sync → Dev/Main + Docker Build"
 
 on:
   schedule:

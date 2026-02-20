@@ -1,4 +1,4 @@
-name: Cleanup Old Releases
+name: "Cleanup Old Releases & Images (monthly)"
 
 on:
   workflow_dispatch:
