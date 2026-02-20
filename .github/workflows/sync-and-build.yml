@@ -1,4 +1,4 @@
-name: "Upstream Sync → Dev/Main (daily)"
+name: "Upstream Sync (daily)"
 
 on:
   schedule:
@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: upstream-sync
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   sync:
@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: main
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -142,14 +142,18 @@ jobs:
 
                 NEW_LOCAL=$(git rev-parse HEAD)
                 if [ "$LOCAL" != "$NEW_LOCAL" ]; then
-                  git push origin dev
+                  # Push to main (primary branch)
+                  git push origin main
                   echo "updated=true" >> $GITHUB_OUTPUT
                   echo "commit_sha=$NEW_LOCAL" >> $GITHUB_OUTPUT
-                  echo "✅ Auto-synced code files to dev"
+                  echo "✅ Auto-synced code files to main"
 
-                  # Also update main branch with the same sync commit
-                  git push --force origin HEAD:refs/heads/main
-                  echo "✅ Also updated main branch"
+                  # Mirror to dev branch to keep them in sync
+                  if git push origin HEAD:refs/heads/dev 2>&1; then
+                    echo "✅ Also updated dev branch"
+                  else
+                    echo "::warning::Failed to mirror sync commit to dev branch"
+                  fi
                 else
                   echo "updated=false" >> $GITHUB_OUTPUT
                 fi
@@ -211,7 +215,7 @@ jobs:
           if [ "$SYNC_STATUS" == "failure" ]; then
             echo "Error during upstream sync." >> $GITHUB_OUTPUT
           elif [ "$UPDATED" == "true" ]; then
-            echo "Successfully synced code files from upstream and pushed to dev and main branches." >> $GITHUB_OUTPUT
+            echo "Successfully synced code files from upstream and pushed to main and dev branches." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
             if [ -n "$SYNCED_FILES" ]; then
               echo "**Synced Files:**" >> $GITHUB_OUTPUT
@@ -226,7 +230,7 @@ jobs:
               echo '```' >> $GITHUB_OUTPUT
             fi
             echo "" >> $GITHUB_OUTPUT
-            echo "🔨 Docker build will be triggered automatically by the push to dev/main." >> $GITHUB_OUTPUT
+            echo "🔨 Docker build will be triggered automatically by the push to main/dev." >> $GITHUB_OUTPUT
             echo "📎 Full diff available as workflow artifact." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
             echo "🔒 setup.py excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
