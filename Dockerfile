@@ -20,30 +20,47 @@ COPY orpheusmorebetter ./
 
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
 
-# Build sox_ng from source as drop-in sox replacement
-# Original SoX is unmaintained since 2015; sox_ng is the active fork
-# https://codeberg.org/sox_ng/sox_ng
+FROM python:3.13-alpine AS flac-builder
+
+ARG FLAC_VERSION=1.5.0
+ARG FLAC_SHA256=f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920
+
+RUN apk add --no-cache build-base libogg-dev xz \
+    && wget -q "https://downloads.xiph.org/releases/flac/flac-${FLAC_VERSION}.tar.xz" \
+    && echo "${FLAC_SHA256}  flac-${FLAC_VERSION}.tar.xz" | sha256sum -c - \
+    && tar xf flac-${FLAC_VERSION}.tar.xz \
+    && cd flac-${FLAC_VERSION} \
+    && ./configure --prefix=/usr --disable-static --disable-thorough-tests \
+    && make -j$(nproc) \
+    && make install DESTDIR=/artifacts
+
 FROM python:3.13-alpine AS sox-builder
 
 ARG SOX_NG_VERSION=14.7.1
+ARG SOX_NG_SHA256=255872ac397213d330f4633871b697d70e86242dff95d66016555a45ef1c58a1
 
-RUN apk add --no-cache build-base flac-dev \
+COPY --from=flac-builder /artifacts/usr/ /usr/
+
+RUN apk add --no-cache build-base libogg-dev pkgconf \
     && wget -q "https://codeberg.org/sox_ng/sox_ng/releases/download/sox_ng-${SOX_NG_VERSION}/sox_ng-${SOX_NG_VERSION}.tar.gz" \
+    && echo "${SOX_NG_SHA256}  sox_ng-${SOX_NG_VERSION}.tar.gz" | sha256sum -c - \
     && tar xzf sox_ng-${SOX_NG_VERSION}.tar.gz \
     && cd sox_ng-${SOX_NG_VERSION} \
-    && ./configure --enable-replace \
+    && ./configure --prefix=/usr --enable-replace --disable-static --disable-openmp --without-sndfile --without-libltdl \
     && make -j$(nproc) \
-    && make install DESTDIR=/sox-out
+    && make install DESTDIR=/artifacts
 
 FROM python:3.13-alpine
 
-# Install sox_ng (built as sox drop-in replacement)
-COPY --from=sox-builder /sox-out/usr/local/ /usr/local/
+COPY --from=flac-builder /artifacts/usr/bin/ /usr/bin/
+COPY --from=flac-builder /artifacts/usr/lib/ /usr/lib/
+COPY --from=sox-builder /artifacts/usr/bin/ /usr/bin/
+COPY --from=sox-builder /artifacts/usr/lib/ /usr/lib/
 
 RUN apk add --no-cache \
     mktorrent \
-    flac \
     lame \
+    libogg \
     libxml2 \
     libxslt \
     openssl \
@@ -52,7 +69,7 @@ RUN apk add --no-cache \
     su-exec \
     tini \
     tzdata \
-    && rm -rf /tmp/*
+    && rm -rf /tmp/* /usr/share/man /usr/share/doc
 
 WORKDIR /app
 
