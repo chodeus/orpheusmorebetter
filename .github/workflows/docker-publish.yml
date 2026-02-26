@@ -157,6 +157,8 @@ jobs:
       event_type: 'security'
       status: 'info'
       title: "Security Scan Results (${{ github.ref_name }})"
+      commit_sha: ${{ github.sha }}
+      include_commit_link: true
       critical_vulns: ${{ needs.build-and-push.outputs.critical_vulns }}
       high_vulns: ${{ needs.build-and-push.outputs.high_vulns }}
     secrets:
