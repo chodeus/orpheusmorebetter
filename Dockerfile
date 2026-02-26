@@ -20,13 +20,30 @@ COPY orpheusmorebetter ./
 
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
 
+# Build sox_ng from source as drop-in sox replacement
+# Original SoX is unmaintained since 2015; sox_ng is the active fork
+# https://codeberg.org/sox_ng/sox_ng
+FROM python:3.13-alpine AS sox-builder
+
+ARG SOX_NG_VERSION=14.7.1
+
+RUN apk add --no-cache build-base flac-dev \
+    && wget -q "https://codeberg.org/sox_ng/sox_ng/releases/download/sox_ng-${SOX_NG_VERSION}/sox_ng-${SOX_NG_VERSION}.tar.gz" \
+    && tar xzf sox_ng-${SOX_NG_VERSION}.tar.gz \
+    && cd sox_ng-${SOX_NG_VERSION} \
+    && ./configure --enable-replace \
+    && make -j$(nproc) \
+    && make install DESTDIR=/sox-out
+
 FROM python:3.13-alpine
+
+# Install sox_ng (built as sox drop-in replacement)
+COPY --from=sox-builder /sox-out/usr/local/ /usr/local/
 
 RUN apk add --no-cache \
     mktorrent \
     flac \
     lame \
-    sox \
     libxml2 \
     libxslt \
     openssl \
