@@ -105,7 +105,7 @@ runs:
           if [ -n "$COMMIT" ]; then
             SHORT_SHA="${COMMIT:0:7}"
             echo "" >> "$TEMP_DESC"
-            echo "🔗 **Commit:** [\`$SHORT_SHA\`](https://github.com/$GITHUB_REPO/commit/$COMMIT)" >> "$TEMP_DESC"
+            echo "🔗 **Commit:** [$SHORT_SHA](https://github.com/$GITHUB_REPO/commit/$COMMIT)" >> "$TEMP_DESC"
           fi
         fi
 
