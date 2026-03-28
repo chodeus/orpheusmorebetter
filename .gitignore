@@ -116,3 +116,12 @@ logs/
 .vscode/
 .venv/
 notes.txt
+CLAUDE.md
+.env
+.env.*
+*.key
+*.pem
+*.crt
+.secrets
+.DS_Store
+Thumbs.db

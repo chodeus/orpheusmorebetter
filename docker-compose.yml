@@ -1,6 +1,6 @@
 services:
   orpheusmorebetter:
-    image: ghcr.io/chodeus/orpheusmorebetter:latest
+    image: ghcr.io/chodeus/orpheusmorebetter:main
     container_name: orpheusmorebetter
     hostname: orpheusmorebetter
     stdin_open: true
@@ -19,4 +19,12 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     restart: "no"
