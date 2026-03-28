@@ -16,7 +16,7 @@ This repository provides a Dockerized wrapper around the upstream
 
 - Based on **Python 3.13 (Alpine)**
 - Includes all required runtime dependencies:
-  - **Audio transcoding tools**: `flac`, `lame`, `sox`
+  - **Audio transcoding tools**: `flac`, `lame`, `sox_ng`
   - **Torrent creation**: `mktorrent`
   - **Python libraries**: `mutagen`, `requests`, `beautifulsoup4`, `lxml`, `pydantic`
 - Runs as a **non-root user** after initial setup
@@ -179,6 +179,17 @@ services:
     volumes:
       - ./config:/config
       - /path/to/flacs:/data/torrents:rw
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
     # Examples - uncomment and modify as needed:
     # command: -m snatched              # Process all snatched
     # command: -U                       # no upload

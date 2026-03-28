@@ -3,7 +3,7 @@
 Installer script for orpheusmorebetter.
 """
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import re
 
@@ -20,8 +20,14 @@ setup(
     name="orpheusmorebetter",
     description="Automatically transcode and upload FLACs on orpheus.network.",
     version=verstr,
-    url="https://https://github.com/walkrflocka/orpheusmorebetter",
-    py_modules=["_version", "tagging", "transcode", "whatapi"],
+    url="https://github.com/CHODEUS/orpheusmorebetter",
+    packages=["models", "services"],
     scripts=["orpheusmorebetter"],
-    install_requires=["mutagen>=1.20", "mechanize==0.2.5", "requests>=1.0"],
+    install_requires=[
+        "beautifulsoup4>=4.13.4,<5.0.0",
+        "mutagen>=1.47.0,<2.0.0",
+        "requests>=2.32.4,<3.0.0",
+        "lxml>=5.4.0,<6.0.0",
+        "pydantic>=2.11.5,<3.0.0",
+    ],
 )

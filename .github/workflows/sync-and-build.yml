@@ -28,7 +28,7 @@ jobs:
       synced_files: ${{ steps.sync.outputs.synced_files }}
       notification_description: ${{ steps.notification.outputs.description }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: main
           fetch-depth: 0
@@ -53,7 +53,7 @@ jobs:
             echo "$UPSTREAM_CHANGES"
 
             AUTO_SYNC_PATTERN='(\.py$|^orpheusmorebetter$|pyproject\.toml|models/|services/|tests/)'
-            EXCLUDE_PATTERN='setup\.py'
+            EXCLUDE_PATTERN='(setup\.py|pyproject\.toml)'
             IGNORE_PATTERN='(^\.dockerignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example$|^docker-compose\.yml$|^start\.sh$)'
             FILES_TO_SYNC=$(echo "$UPSTREAM_CHANGES" | grep -E "$AUTO_SYNC_PATTERN" | grep -vE "$EXCLUDE_PATTERN" || true)
             SETUP_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^setup\.py$" || true)
@@ -166,12 +166,17 @@ jobs:
 
             MANUAL_REVIEW=$(echo "$UPSTREAM_CHANGES" | grep -vE "$AUTO_SYNC_PATTERN" | grep -vE "$IGNORE_PATTERN" || true)
 
-            if [ -n "$SETUP_CHANGED" ]; then
-              echo "⚠️ setup.py changed upstream - needs manual review"
+            PYPROJECT_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^pyproject\.toml$" || true)
+
+            if [ -n "$SETUP_CHANGED" ] || [ -n "$PYPROJECT_CHANGED" ]; then
+              echo "⚠️ setup.py/pyproject.toml changed upstream - needs manual review"
+              EXCLUDED_CHANGED=""
+              [ -n "$SETUP_CHANGED" ] && EXCLUDED_CHANGED="setup.py"
+              [ -n "$PYPROJECT_CHANGED" ] && EXCLUDED_CHANGED="${EXCLUDED_CHANGED:+$EXCLUDED_CHANGED\n}pyproject.toml"
               if [ -z "$MANUAL_REVIEW" ]; then
-                MANUAL_REVIEW="setup.py"
+                MANUAL_REVIEW="$EXCLUDED_CHANGED"
               else
-                MANUAL_REVIEW=$(echo -e "setup.py\n${MANUAL_REVIEW}")
+                MANUAL_REVIEW=$(echo -e "${EXCLUDED_CHANGED}\n${MANUAL_REVIEW}")
               fi
             fi
 
@@ -190,7 +195,7 @@ jobs:
 
       - name: Upload diff artifact
         if: steps.sync.outputs.updated == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: upstream-diff
           path: /tmp/sync-artifacts/upstream-diff.patch
@@ -233,7 +238,7 @@ jobs:
             echo "🔨 Docker build will be triggered automatically by the push to main/dev." >> $GITHUB_OUTPUT
             echo "📎 Full diff available as workflow artifact." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
-            echo "🔒 setup.py excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
+            echo "🔒 setup.py and pyproject.toml excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
           else
             echo "Checked upstream repository - already up to date." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT

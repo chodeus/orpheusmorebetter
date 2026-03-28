@@ -1,4 +1,4 @@
-FROM python:3.13-alpine AS builder
+FROM python:3.13.2-alpine AS builder
 
 RUN apk add --no-cache \
     gcc \
@@ -20,7 +20,7 @@ COPY orpheusmorebetter ./
 
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
 
-FROM python:3.13-alpine AS flac-builder
+FROM python:3.13.2-alpine AS flac-builder
 
 ARG FLAC_VERSION=1.5.0
 ARG FLAC_SHA256=f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920
@@ -34,7 +34,7 @@ RUN apk add --no-cache build-base libogg-dev xz \
     && make -j$(nproc) \
     && make install DESTDIR=/artifacts
 
-FROM python:3.13-alpine AS sox-builder
+FROM python:3.13.2-alpine AS sox-builder
 
 ARG SOX_NG_VERSION=14.7.1
 ARG SOX_NG_SHA256=255872ac397213d330f4633871b697d70e86242dff95d66016555a45ef1c58a1
@@ -50,7 +50,7 @@ RUN apk add --no-cache build-base libogg-dev pkgconf \
     && make -j$(nproc) \
     && make install DESTDIR=/artifacts
 
-FROM python:3.13-alpine
+FROM python:3.13.2-alpine
 
 COPY --from=flac-builder /artifacts/usr/bin/ /usr/bin/
 COPY --from=flac-builder /artifacts/usr/lib/ /usr/lib/
@@ -103,7 +103,7 @@ LABEL org.opencontainers.image.title="OrpheusMoreBetter" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.licenses="GPL-3.0" \
-      org.opencontainers.image.base.name="python:3.13-alpine"
+      org.opencontainers.image.base.name="python:3.13.2-alpine"
 
 ENV PUID=99 \
     PGID=100 \

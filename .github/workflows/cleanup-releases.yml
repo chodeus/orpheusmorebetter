@@ -24,7 +24,7 @@ jobs:
           done
 
       - name: Delete old container images (keep last 5, preserve latest/main/dev tags)
-        uses: actions/delete-package-versions@v5
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5
         with:
           package-name: 'orpheusmorebetter'
           package-type: 'container'
