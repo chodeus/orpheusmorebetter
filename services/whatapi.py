@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, Tag
 from typing import Any, Literal
 
 from models import Torrent, TorrentGroup, Format
-from models.exceptions import RequestException
+from models.exceptions import LoginException, RequestException
 
 # gazelle is picky about case in searches with &media=x
 media_search_map = {
@@ -74,7 +74,10 @@ class WhatAPI:
             },
         )
         r.raise_for_status()
-        assert r.cookies is not None
+        if "login.php" in r.url:
+            raise LoginException(
+                "Login failed — check your username, password, and TOTP code"
+            )
         LOGGER.info(f"Orpheus session opened successfully.")
 
     def request_ajax(
@@ -114,7 +117,9 @@ class WhatAPI:
                 raise RequestException(parsed["error"])
             return parsed["response"]
         except ValueError as e:
-            raise RequestException from e
+            raise RequestException(
+                f"Invalid response from '{action}' (HTTP {r.status_code}) — expected JSON"
+            ) from e
 
     def request_webpage(self, action: str, **kwargs: Any):
         """Grab the HTML content of a page"""
