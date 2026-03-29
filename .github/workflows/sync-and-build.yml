@@ -53,7 +53,7 @@ jobs:
             echo "$UPSTREAM_CHANGES"
 
             AUTO_SYNC_PATTERN='(\.py$|^orpheusmorebetter$|pyproject\.toml|models/|services/|tests/)'
-            EXCLUDE_PATTERN='(setup\.py|pyproject\.toml)'
+            EXCLUDE_PATTERN='(setup\.py|pyproject\.toml|^orpheusmorebetter$|services/whatapi\.py)'
             IGNORE_PATTERN='(^\.dockerignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example$|^docker-compose\.yml$|^start\.sh$)'
             FILES_TO_SYNC=$(echo "$UPSTREAM_CHANGES" | grep -E "$AUTO_SYNC_PATTERN" | grep -vE "$EXCLUDE_PATTERN" || true)
             SETUP_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^setup\.py$" || true)
@@ -238,7 +238,8 @@ jobs:
             echo "🔨 Docker build will be triggered automatically by the push to main/dev." >> $GITHUB_OUTPUT
             echo "📎 Full diff available as workflow artifact." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
-            echo "🔒 setup.py and pyproject.toml excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
+            echo "🔒 Some files excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
+            echo "🔎 [View full upstream diff](https://github.com/${{ github.repository }}/compare/main...walkrflocka:orpheusmorebetter:master)" >> $GITHUB_OUTPUT
           else
             echo "Checked upstream repository - already up to date." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
