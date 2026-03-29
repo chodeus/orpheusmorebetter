@@ -79,7 +79,7 @@ RUN pip install --no-cache-dir --no-compile /tmp/wheels/* \
     && rm -rf /tmp/wheels \
     && rm -rf /root/.cache/pip
 
-COPY orpheusmorebetter start.sh ./
+COPY orpheusmorebetter start.sh _version.py ./
 COPY models/ ./models/
 COPY services/ ./services/
 
