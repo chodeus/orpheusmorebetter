@@ -103,7 +103,7 @@ LABEL org.opencontainers.image.title="OrpheusMoreBetter" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.licenses="GPL-3.0" \
-      org.opencontainers.image.base.name="python:3.13.2-alpine"
+      org.opencontainers.image.base.name="python:3.14.3-alpine"
 
 ENV PUID=99 \
     PGID=100 \
