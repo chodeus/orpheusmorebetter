@@ -1,4 +1,4 @@
-FROM python:3.14.3-alpine AS builder
+FROM python:3.15.0a8-alpine AS builder
 
 RUN apk add --no-cache \
     gcc \
@@ -20,7 +20,7 @@ COPY orpheusmorebetter ./
 
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
 
-FROM python:3.14.3-alpine AS flac-builder
+FROM python:3.15.0a8-alpine AS flac-builder
 
 ARG FLAC_VERSION=1.5.0
 ARG FLAC_SHA256=f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920
@@ -36,7 +36,7 @@ RUN apk add --no-cache build-base libogg-dev xz \
     && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete \
     && rm -rf /artifacts/usr/include /artifacts/usr/lib/pkgconfig
 
-FROM python:3.14.3-alpine AS sox-builder
+FROM python:3.15.0a8-alpine AS sox-builder
 
 ARG SOX_NG_VERSION=14.7.1
 ARG SOX_NG_SHA256=255872ac397213d330f4633871b697d70e86242dff95d66016555a45ef1c58a1
@@ -54,7 +54,7 @@ RUN apk add --no-cache build-base libogg-dev pkgconf \
     && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete \
     && rm -rf /artifacts/usr/include /artifacts/usr/lib/pkgconfig
 
-FROM python:3.14.3-alpine
+FROM python:3.15.0a8-alpine
 
 COPY --from=flac-builder /artifacts/usr/bin/ /usr/bin/
 COPY --from=flac-builder /artifacts/usr/lib/ /usr/lib/
