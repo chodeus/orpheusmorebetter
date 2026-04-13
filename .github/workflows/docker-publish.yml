@@ -11,21 +11,6 @@ on:
       - 'Dockerfile'
       - 'start.sh'
       - 'requirements.txt'
-      - 'setup.py'
-      - 'pyproject.toml'
-      - '_version.py'
-      - 'orpheusmorebetter'
-      - 'models/**'
-      - 'services/**'
-  pull_request:
-    branches:
-      - main
-      - dev
-    paths:
-      - 'Dockerfile'
-      - 'start.sh'
-      - 'requirements.txt'
-      - 'setup.py'
       - 'pyproject.toml'
       - '_version.py'
       - 'orpheusmorebetter'
@@ -137,7 +122,7 @@ jobs:
   log-build:
     needs: build-and-push
     if: always() && github.event_name != 'pull_request'
-    uses: ./.github/workflows/logging.yml
+    uses: ./.github/workflows/discord-notify.yml
     with:
       event_type: 'build'
       status: ${{ needs.build-and-push.result }}
@@ -152,7 +137,7 @@ jobs:
   log-security:
     needs: build-and-push
     if: always() && github.event_name != 'pull_request' && needs.build-and-push.result != 'skipped'
-    uses: ./.github/workflows/logging.yml
+    uses: ./.github/workflows/discord-notify.yml
     with:
       event_type: 'security'
       status: 'info'

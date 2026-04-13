@@ -13,7 +13,7 @@ WORKDIR /build
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels -r requirements.txt
 
-COPY setup.py pyproject.toml _version.py ./
+COPY pyproject.toml _version.py ./
 COPY models/ ./models/
 COPY services/ ./services/
 COPY orpheusmorebetter ./
@@ -32,7 +32,9 @@ RUN apk add --no-cache build-base libogg-dev xz \
     && cd flac-${FLAC_VERSION} \
     && ./configure --prefix=/usr --disable-static --disable-thorough-tests \
     && make -j$(nproc) \
-    && make install DESTDIR=/artifacts
+    && make install DESTDIR=/artifacts \
+    && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete \
+    && rm -rf /artifacts/usr/include /artifacts/usr/lib/pkgconfig
 
 FROM python:3.14.3-alpine AS sox-builder
 
@@ -48,7 +50,9 @@ RUN apk add --no-cache build-base libogg-dev pkgconf \
     && cd sox_ng-${SOX_NG_VERSION} \
     && ./configure --prefix=/usr --enable-replace --disable-static --disable-openmp --without-sndfile --without-libltdl \
     && make -j$(nproc) \
-    && make install DESTDIR=/artifacts
+    && make install DESTDIR=/artifacts \
+    && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete \
+    && rm -rf /artifacts/usr/include /artifacts/usr/lib/pkgconfig
 
 FROM python:3.14.3-alpine
 
@@ -79,7 +83,8 @@ RUN pip install --no-cache-dir --no-compile /tmp/wheels/* \
     && rm -rf /tmp/wheels \
     && rm -rf /root/.cache/pip
 
-COPY orpheusmorebetter start.sh _version.py ./
+COPY start.sh ./
+COPY orpheusmorebetter _version.py ./
 COPY models/ ./models/
 COPY services/ ./services/
 
@@ -115,6 +120,9 @@ ENV PUID=99 \
     PIP_NO_CACHE_DIR=1
 
 VOLUME ["/config"]
+
+HEALTHCHECK --interval=120s --timeout=10s --start-period=30s --retries=3 \
+  CMD pgrep -f "orpheusmorebetter" > /dev/null || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--", "/app/start.sh"]
 CMD []

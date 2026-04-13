@@ -36,6 +36,7 @@ jobs:
 
       - name: Sync with upstream
         id: sync
+        timeout-minutes: 5
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
@@ -269,7 +270,7 @@ jobs:
   log-sync:
     needs: sync
     if: always() && (needs.sync.result == 'failure' || needs.sync.outputs.updated == 'true' || needs.sync.outputs.manual_review_needed == 'true' || needs.sync.outputs.deleted_files_detected == 'true')
-    uses: ./.github/workflows/logging.yml
+    uses: ./.github/workflows/discord-notify.yml
     with:
       event_type: 'sync'
       status: ${{ needs.sync.result == 'failure' && 'failure' || (needs.sync.outputs.updated == 'true' && 'success' || 'info') }}
