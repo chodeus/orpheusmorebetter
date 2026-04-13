@@ -33,8 +33,7 @@ RUN apk add --no-cache build-base libogg-dev xz \
     && ./configure --prefix=/usr --disable-static --disable-thorough-tests \
     && make -j$(nproc) \
     && make install DESTDIR=/artifacts \
-    && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete \
-    && rm -rf /artifacts/usr/include /artifacts/usr/lib/pkgconfig
+    && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete
 
 FROM python:3.14.3-alpine AS sox-builder
 
