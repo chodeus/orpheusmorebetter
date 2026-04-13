@@ -23,6 +23,9 @@ Repository = "https://github.com/CHODEUS/orpheusmorebetter"
 [project.scripts]
 orpheusmorebetter = "orpheusmorebetter:main"
 
+[tool.setuptools.packages.find]
+include = ["models*", "services*"]
+
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "-v"]
 testpaths = ["tests"]
