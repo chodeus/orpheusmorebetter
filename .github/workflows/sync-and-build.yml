@@ -287,7 +287,7 @@ jobs:
   log-sync:
     needs: sync
     if: always() && (needs.sync.result == 'failure' || needs.sync.outputs.manual_review_needed == 'true' || needs.sync.outputs.deleted_files_detected == 'true')
-    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@3f45de2e4563b8d1ec8e385d9b0cdc5508657ce8 # main
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@bac8ae59708d42e8c3cd277fe1740164d0ec3ce0 # main
     with:
       event_type: sync
       status: ${{ needs.sync.result == 'failure' && 'failure' || 'warning' }}
