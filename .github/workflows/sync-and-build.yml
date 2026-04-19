@@ -53,8 +53,10 @@ jobs:
             echo "Upstream changed files:"
             echo "$UPSTREAM_CHANGES"
 
-            AUTO_SYNC_PATTERN='(\.py$|^orpheusmorebetter$|pyproject\.toml|models/|services/|tests/)'
-            EXCLUDE_PATTERN='(setup\.py|pyproject\.toml|^orpheusmorebetter$|services/whatapi\.py)'
+            # Narrowed scope: only auto-sync the main orpheusmorebetter script.
+            # Everything else requires manual review to avoid surprise changes.
+            AUTO_SYNC_PATTERN='^orpheusmorebetter$'
+            EXCLUDE_PATTERN='(setup\.py|pyproject\.toml|services/whatapi\.py)'
             IGNORE_PATTERN='(^\.dockerignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example$|^docker-compose\.yml$|^start\.sh$)'
             FILES_TO_SYNC=$(echo "$UPSTREAM_CHANGES" | grep -E "$AUTO_SYNC_PATTERN" | grep -vE "$EXCLUDE_PATTERN" || true)
             SETUP_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^setup\.py$" || true)
@@ -266,6 +268,21 @@ jobs:
           fi
 
           echo "EOF" >> $GITHUB_OUTPUT
+
+  # Refresh :latest / :main Docker image after a successful sync.
+  # The sync commit itself pushes via GITHUB_TOKEN, which doesn't trigger
+  # docker-publish's push handler. Explicit workflow_dispatch from here does.
+  publish-docker:
+    needs: sync
+    if: needs.sync.outputs.updated == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch docker-publish at latest main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run docker-publish.yml --repo "${{ github.repository }}" --ref main
 
   log-sync:
     needs: sync
