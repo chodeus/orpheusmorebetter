@@ -109,7 +109,7 @@ jobs:
   notify-failure:
     needs: build-and-push
     if: failure() && github.event_name != 'pull_request'
-    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@f52074df42a4c2b88ff3b26d5ce94af69d2d3aa7 # main
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@01955db8a3a9dfabfd1d0496db344ed42ea60753 # main
     with:
       event_type: build
       status: failure
