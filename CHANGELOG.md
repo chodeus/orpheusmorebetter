@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/chodeus/orpheusmorebetter/compare/v1.0.0...v1.0.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#38](https://github.com/chodeus/orpheusmorebetter/issues/38)) ([3b1702a](https://github.com/chodeus/orpheusmorebetter/commit/3b1702a27ce03902d97977c68d10dd5ea580abd1))
+* **deps:** update dependency requests to &gt;=2.33.0,&lt;3.0.0 [security] ([#31](https://github.com/chodeus/orpheusmorebetter/issues/31)) ([c2561c7](https://github.com/chodeus/orpheusmorebetter/commit/c2561c70cbe09fb5522761e12243472177716975))
+
 ## 1.0.0 (2026-04-19)
 
 
