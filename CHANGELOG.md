@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/chodeus/orpheusmorebetter/compare/v1.0.3...v1.1.0) (2026-04-19)
+
+
+### Features
+
+* add monotonic BUILD_NUMBER to docker image ([#51](https://github.com/chodeus/orpheusmorebetter/issues/51)) ([d2471f3](https://github.com/chodeus/orpheusmorebetter/commit/d2471f3b56805b40059eb03c73c1563fce0957c3))
+
 ## [1.0.3](https://github.com/chodeus/orpheusmorebetter/compare/v1.0.2...v1.0.3) (2026-04-19)
 
 
