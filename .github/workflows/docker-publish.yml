@@ -43,6 +43,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Compute build number
+        id: build_number
+        run: echo "number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -89,6 +95,7 @@ jobs:
             GIT_BRANCH=${{ github.ref_name }}
             BUILD_DATE=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
             VCS_REF=${{ github.sha }}
+            BUILD_NUMBER=${{ steps.build_number.outputs.number }}
 
       - name: Run Trivy vulnerability scanner
         if: github.event_name != 'pull_request'
