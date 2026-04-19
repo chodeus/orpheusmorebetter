@@ -269,18 +269,10 @@ jobs:
 
   log-sync:
     needs: sync
-    if: always() && (needs.sync.result == 'failure' || needs.sync.outputs.updated == 'true' || needs.sync.outputs.manual_review_needed == 'true' || needs.sync.outputs.deleted_files_detected == 'true')
-    uses: ./.github/workflows/discord-notify.yml
+    if: always() && (needs.sync.result == 'failure' || needs.sync.outputs.manual_review_needed == 'true' || needs.sync.outputs.deleted_files_detected == 'true')
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@main
     with:
-      event_type: 'sync'
-      status: ${{ needs.sync.result == 'failure' && 'failure' || (needs.sync.outputs.updated == 'true' && 'success' || 'info') }}
-      title: ${{ needs.sync.result == 'failure' && 'Upstream Sync Failed' || (needs.sync.outputs.updated == 'true' && 'Code Auto-Synced from Upstream' || 'No Changes Detected') }}
-      description: ${{ needs.sync.outputs.notification_description }}
-      sync_updated: ${{ needs.sync.outputs.updated }}
-      manual_review_needed: ${{ needs.sync.outputs.manual_review_needed }}
-      manual_review_files: ${{ needs.sync.outputs.manual_review_files }}
-      deleted_files_detected: ${{ needs.sync.outputs.deleted_files_detected }}
-      deleted_files: ${{ needs.sync.outputs.deleted_files }}
-      include_commit_link: false
-    secrets:
-      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      event_type: sync
+      status: ${{ needs.sync.result == 'failure' && 'failure' || 'warning' }}
+      title: ${{ needs.sync.result == 'failure' && '❌ Upstream sync failed' || '⚠️ Upstream sync needs attention' }}
+    secrets: inherit
