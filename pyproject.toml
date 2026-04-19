@@ -9,11 +9,11 @@ description = "Automatic transcode helper for Orpheus Network"
 license = {text = "GPL-3.0"}
 requires-python = ">=3.10"
 dependencies = [
-    "beautifulsoup4>=4.13.4,<5.0.0",
+    "beautifulsoup4>=4.13.5,<5.0.0",
     "mutagen>=1.47.0,<2.0.0",
-    "requests>=2.33.0,<3.0.0",
+    "requests>=2.33.1,<3.0.0",
     "lxml>=5.4.0,<7.0.0",
-    "pydantic>=2.11.5,<3.0.0",
+    "pydantic>=2.11.10,<3.0.0",
 ]
 
 [project.urls]
