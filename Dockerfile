@@ -94,9 +94,11 @@ ARG VERSION=dev
 ARG GIT_BRANCH=main
 ARG BUILD_DATE
 ARG VCS_REF
+ARG BUILD_NUMBER
 
 RUN echo "v${VERSION}" > /app/version.txt \
-    && echo "${GIT_BRANCH}" > /app/branch.txt
+    && echo "${GIT_BRANCH}" > /app/branch.txt \
+    && echo "${BUILD_NUMBER}" > /app/build_number.txt
 
 LABEL org.opencontainers.image.title="OrpheusMoreBetter" \
       org.opencontainers.image.description="Automatic transcode helper for Orpheus Network" \
@@ -107,7 +109,8 @@ LABEL org.opencontainers.image.title="OrpheusMoreBetter" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.licenses="GPL-3.0" \
-      org.opencontainers.image.base.name="python:3.14.3-alpine"
+      org.opencontainers.image.base.name="python:3.14.3-alpine" \
+      build.number="${BUILD_NUMBER}"
 
 ENV PUID=99 \
     PGID=100 \
@@ -116,7 +119,8 @@ ENV PUID=99 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    BUILD_NUMBER=${BUILD_NUMBER}
 
 VOLUME ["/config"]
 
