@@ -16,6 +16,10 @@ on:
       - 'orpheusmorebetter'
       - 'models/**'
       - 'services/**'
+      # release-please-touched files — ensures tag pushes publish semver images
+      - 'VERSION'
+      - 'CHANGELOG.md'
+      - '.release-please-manifest.json'
   workflow_dispatch:
 
 concurrency:
