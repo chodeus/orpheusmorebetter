@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.3](https://github.com/chodeus/orpheusmorebetter/compare/v1.0.2...v1.0.3) (2026-04-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency lxml to v6 ([#44](https://github.com/chodeus/orpheusmorebetter/issues/44)) ([3136b93](https://github.com/chodeus/orpheusmorebetter/commit/3136b9316036c0ae2ba17a9ebc6c50ecce347863))
+* **docker-publish:** include release-please files in paths filter ([#46](https://github.com/chodeus/orpheusmorebetter/issues/46)) ([7bf886a](https://github.com/chodeus/orpheusmorebetter/commit/7bf886a2b35fa23d13e3146ec2f975c60dabdfdc))
+* **sync:** narrow to main script + refresh Docker after sync ([#47](https://github.com/chodeus/orpheusmorebetter/issues/47)) ([b303eb3](https://github.com/chodeus/orpheusmorebetter/commit/b303eb36ff1439cba758a6e8391a64f2b2e66197))
+
 ## [1.0.2](https://github.com/chodeus/orpheusmorebetter/compare/v1.0.1...v1.0.2) (2026-04-19)
 
 
