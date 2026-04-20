@@ -22,7 +22,6 @@ from _version import __version__
 
 from services import tagging, transcode, whatapi
 from models import TorrentGroup, Torrent, Format
-from models.exceptions import LoginException, RequestException
 import models.format as formats
 
 if sys.version_info < (3, 10, 0): # investigate 311
@@ -282,14 +281,7 @@ def main():
     upload_torrent = not args.no_upload
 
     logger.info("Logging in to Orpheus Network...")
-    try:
-        api = whatapi.WhatAPI(username, password, endpoint, args.totp)
-    except LoginException as e:
-        logger.error(f"Login failed: {e}")
-        sys.exit(1)
-    except RequestException as e:
-        logger.error(f"API error during login: {e}")
-        sys.exit(1)
+    api = whatapi.WhatAPI(username, password, endpoint, args.totp)
     seen: set[str]
 
     try:
