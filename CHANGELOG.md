@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/chodeus/orpheusmorebetter/compare/v1.1.0...v1.1.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* restore LoginException/RequestException handling in main entry ([2d1e6ce](https://github.com/chodeus/orpheusmorebetter/commit/2d1e6ce9212827a0d7a3495bfbfe520644df9a61))
+
 ## [1.1.0](https://github.com/chodeus/orpheusmorebetter/compare/v1.0.3...v1.1.0) (2026-04-19)
 
 
