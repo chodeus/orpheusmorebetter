@@ -22,8 +22,8 @@ jobs:
       commit_sha: ${{ steps.sync.outputs.commit_sha }}
       manual_review_needed: ${{ steps.sync.outputs.manual_review_needed }}
       manual_review_files: ${{ steps.sync.outputs.manual_review_files }}
-      deleted_files_detected: ${{ steps.sync.outputs.deleted_files_detected }}
-      deleted_files: ${{ steps.sync.outputs.deleted_files }}
+      foundation_changes_detected: ${{ steps.sync.outputs.foundation_changes_detected }}
+      foundation_changed_files: ${{ steps.sync.outputs.foundation_changed_files }}
       diff_stats: ${{ steps.sync.outputs.diff_stats }}
       synced_files: ${{ steps.sync.outputs.synced_files }}
       notification_description: ${{ steps.notification.outputs.description }}
@@ -42,166 +42,213 @@ jobs:
           git config user.email github-actions@github.com
           git remote add upstream https://github.com/walkrflocka/orpheusmorebetter.git || git remote set-url upstream https://github.com/walkrflocka/orpheusmorebetter.git
           git fetch upstream master
+          # Fetch existing baseline tag (if any) so we can compare progress.
+          git fetch origin 'refs/tags/last-synced-upstream:refs/tags/last-synced-upstream' 2>/dev/null || true
 
           LOCAL=$(git rev-parse HEAD)
-          REMOTE=$(git rev-parse upstream/master)
+          UPSTREAM_NOW=$(git rev-parse upstream/master)
 
-          if [ "$LOCAL" != "$REMOTE" ]; then
-            echo "📊 Changes detected in upstream"
+          # Baseline: the last upstream/master SHA we processed. Compared against
+          # UPSTREAM_NOW to detect *new* upstream activity — avoids daily re-firing
+          # about the same static divergence on locally-maintained files.
+          BASELINE=$(git rev-parse --verify refs/tags/last-synced-upstream 2>/dev/null || echo "")
 
-            UPSTREAM_CHANGES=$(git diff --name-only HEAD upstream/master)
-            echo "Upstream changed files:"
-            echo "$UPSTREAM_CHANGES"
+          if [ -z "$BASELINE" ]; then
+            echo "ℹ️ No baseline tag yet — seeding 'last-synced-upstream' at $UPSTREAM_NOW and exiting silently."
+            git tag -f last-synced-upstream "$UPSTREAM_NOW"
+            git push origin "refs/tags/last-synced-upstream" --force
+            echo "updated=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
-            # Narrowed scope: only auto-sync the main orpheusmorebetter script.
-            # Everything else requires manual review to avoid surprise changes.
-            AUTO_SYNC_PATTERN='^orpheusmorebetter$'
-            EXCLUDE_PATTERN='(setup\.py|pyproject\.toml|services/whatapi\.py)'
-            IGNORE_PATTERN='(^\.dockerignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example$|^docker-compose\.yml$|^start\.sh$)'
-            FILES_TO_SYNC=$(echo "$UPSTREAM_CHANGES" | grep -E "$AUTO_SYNC_PATTERN" | grep -vE "$EXCLUDE_PATTERN" || true)
-            SETUP_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^setup\.py$" || true)
+          if [ "$BASELINE" = "$UPSTREAM_NOW" ]; then
+            echo "✅ Upstream unchanged since last sync run (baseline $BASELINE) — nothing to do."
+            echo "updated=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
-            if [ -n "$FILES_TO_SYNC" ]; then
-              echo "Auto-syncing these files:"
+          echo "📊 Upstream advanced: $BASELINE → $UPSTREAM_NOW"
+
+          # Files that changed in upstream/master BETWEEN baseline and now.
+          # This is the only set we want to act on — not the long tail of
+          # historical fork divergence.
+          NEW_UPSTREAM_CHANGES=$(git diff --name-only "$BASELINE" "$UPSTREAM_NOW")
+          echo "Files upstream touched since baseline:"
+          echo "$NEW_UPSTREAM_CHANGES"
+
+          # Keep only files that still differ from our HEAD. If we already have
+          # the new upstream content (e.g. cherry-picked manually), don't re-alert.
+          CURRENT_HEAD_DIFFS=$(git diff --name-only HEAD "$UPSTREAM_NOW")
+          UPSTREAM_CHANGES=$(comm -12 \
+            <(printf '%s\n' "$NEW_UPSTREAM_CHANGES" | sort -u) \
+            <(printf '%s\n' "$CURRENT_HEAD_DIFFS" | sort -u))
+          # Drop fork-only files (still appear in CURRENT_HEAD_DIFFS as upstream-deletions).
+          UPSTREAM_CHANGES=$(
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              if git cat-file -e upstream/master:"$f" 2>/dev/null; then
+                printf '%s\n' "$f"
+              fi
+            done <<< "$UPSTREAM_CHANGES"
+          )
+          echo "Actionable upstream changes (exist upstream AND differ from HEAD):"
+          echo "$UPSTREAM_CHANGES"
+
+          if [ -z "$UPSTREAM_CHANGES" ]; then
+            echo "ℹ️ Upstream advanced but nothing affects files we track locally — bumping baseline silently."
+            git tag -f last-synced-upstream "$UPSTREAM_NOW"
+            git push origin "refs/tags/last-synced-upstream" --force
+            echo "updated=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Classification:
+          #   AUTO_SYNC_PATTERN — core Python code that tracks upstream verbatim.
+          #                       Matched files are auto-committed after sync.
+          #   EXCLUDE_PATTERN   — "foundation" files we maintain locally. When
+          #                       upstream changes one of these, emit a
+          #                       HIGH-PRIORITY notification with the diff so
+          #                       improvements can be cherry-picked manually.
+          #   IGNORE_PATTERN    — fork-specific infrastructure (Docker, CI,
+          #                       README). Expected to diverge, no notification.
+          #   Everything else   — falls into the general manual-review bucket
+          #                       (warning-level notification).
+          AUTO_SYNC_PATTERN='^(orpheusmorebetter|_version\.py|models/.*\.py|services/.*\.py|tests/.*\.py)$'
+          EXCLUDE_PATTERN='^(setup\.py|pyproject\.toml|requirements\.txt|services/whatapi\.py|orpheusmorebetter)$'
+          IGNORE_PATTERN='(^\.dockerignore$|^\.gitignore$|^\.github/|^Dockerfile$|^README\.md$|^config\.example$|^docker-compose\.yml$|^start\.sh$)'
+
+          # Files that match AUTO_SYNC but NOT EXCLUDE → safe to auto-apply.
+          FILES_TO_SYNC=$(echo "$UPSTREAM_CHANGES" | grep -E "$AUTO_SYNC_PATTERN" | grep -vE "$EXCLUDE_PATTERN" || true)
+
+          # Foundation files (EXCLUDE_PATTERN) that changed upstream since baseline.
+          # These need manual cherry-pick review — high-priority notify.
+          FOUNDATION_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "$EXCLUDE_PATTERN" || true)
+
+          if [ -n "$FILES_TO_SYNC" ]; then
+            echo "Auto-syncing these files:"
+            echo "$FILES_TO_SYNC"
+
+            DIFF_STATS=""
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              FILE_STAT=$(git diff --stat HEAD upstream/master -- "$f")
+              if [ -n "$FILE_STAT" ]; then
+                DIFF_STATS="$(printf '%s%s\n' "$DIFF_STATS" "$FILE_STAT")"
+              fi
+            done <<< "$FILES_TO_SYNC"
+            {
+              echo "diff_stats<<EOF"
+              echo "$DIFF_STATS"
+              echo "EOF"
+              echo "synced_files<<EOF"
               echo "$FILES_TO_SYNC"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
 
-              # Only sync files that exist in upstream (ignore fork-only files)
-              FILTERED_FILES=""
-              while IFS= read -r f; do
-                [ -z "$f" ] && continue
-                if git cat-file -e upstream/master:"$f" 2>/dev/null; then
-                  if [ -z "$FILTERED_FILES" ]; then
-                    FILTERED_FILES="$f"
-                  else
-                    FILTERED_FILES="$(printf '%s\n%s' "$FILTERED_FILES" "$f")"
-                  fi
-                else
-                  echo "ℹ️ Skipping fork-only file: $f"
-                fi
-              done <<< "$FILES_TO_SYNC"
-              FILES_TO_SYNC="$FILTERED_FILES"
+            mkdir -p /tmp/sync-artifacts
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              git diff HEAD upstream/master -- "$f"
+            done <<< "$FILES_TO_SYNC" > /tmp/sync-artifacts/upstream-diff.patch
 
-              if [ -z "$FILES_TO_SYNC" ]; then
-                echo "ℹ️ No auto-syncable files changed (all were fork-only)"
-                echo "updated=false" >> $GITHUB_OUTPUT
-              else
-
-              # Capture diff stats and full diff before overwriting files
-              DIFF_STATS=""
-              while IFS= read -r f; do
-                [ -z "$f" ] && continue
-                FILE_STAT=$(git diff --stat HEAD upstream/master -- "$f")
-                if [ -n "$FILE_STAT" ]; then
-                  DIFF_STATS="$(printf '%s%s\n' "$DIFF_STATS" "$FILE_STAT")"
-                fi
-              done <<< "$FILES_TO_SYNC"
-              echo "diff_stats<<EOF" >> $GITHUB_OUTPUT
-              echo "$DIFF_STATS" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-
-              echo "synced_files<<EOF" >> $GITHUB_OUTPUT
-              echo "$FILES_TO_SYNC" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-
-              mkdir -p /tmp/sync-artifacts
-              echo "$FILES_TO_SYNC" | while IFS= read -r f; do [ -n "$f" ] && git diff HEAD upstream/master -- "$f"; done > /tmp/sync-artifacts/upstream-diff.patch
-
-              DELETED_FILES_TMP=$(mktemp)
-
-              echo "$FILES_TO_SYNC" | while IFS= read -r file; do
-                if [ -z "$file" ]; then
-                  continue
-                fi
-
-                if git cat-file -e upstream/master:"$file" 2>/dev/null; then
-                  if ! git checkout upstream/master -- "$file" 2>/dev/null; then
-                    echo "::warning::Could not checkout $file"
-                  fi
-                else
-                  if [ -e "$file" ]; then
-                    echo "⚠️ File/directory deleted upstream: $file"
-                    echo "$file" >> "$DELETED_FILES_TMP"
-                  fi
-                fi
-              done
-
-              DELETED_FILES=$(cat "$DELETED_FILES_TMP")
-              rm -f "$DELETED_FILES_TMP"
-
-              if [ -n "$DELETED_FILES" ]; then
-                echo "deleted_files_detected=true" >> $GITHUB_OUTPUT
-                echo "deleted_files<<EOF" >> $GITHUB_OUTPUT
-                echo "$DELETED_FILES" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              if ! git checkout upstream/master -- "$file" 2>/dev/null; then
+                echo "::warning::Could not checkout $file"
               fi
+            done <<< "$FILES_TO_SYNC"
 
-              git add -A
+            git add -A
 
-              if git diff --cached --quiet; then
-                echo "ℹ️ No actual changes after sync"
-                echo "updated=false" >> $GITHUB_OUTPUT
-              else
-                git commit -m "chore: auto-sync code files from upstream (excluding setup.py)"
-
-                NEW_LOCAL=$(git rev-parse HEAD)
-                if [ "$LOCAL" != "$NEW_LOCAL" ]; then
-                  # Push to main (primary branch)
-                  git push origin main
-                  echo "updated=true" >> $GITHUB_OUTPUT
-                  echo "commit_sha=$NEW_LOCAL" >> $GITHUB_OUTPUT
-                  echo "✅ Auto-synced code files to main"
-
-                  # Mirror to dev branch to keep them in sync
-                  if git push origin HEAD:refs/heads/dev 2>&1; then
-                    echo "✅ Also updated dev branch"
-                  else
-                    echo "::warning::Failed to mirror sync commit to dev branch"
-                  fi
-                else
-                  echo "updated=false" >> $GITHUB_OUTPUT
-                fi
-              fi
-              fi
-            else
-              echo "ℹ️ No auto-syncable files changed"
+            if git diff --cached --quiet; then
+              echo "ℹ️ No actual changes after sync"
               echo "updated=false" >> $GITHUB_OUTPUT
-            fi
+            else
+              git commit -m "chore: auto-sync code files from upstream"
 
-            MANUAL_REVIEW=$(echo "$UPSTREAM_CHANGES" | grep -vE "$AUTO_SYNC_PATTERN" | grep -vE "$IGNORE_PATTERN" || true)
+              NEW_LOCAL=$(git rev-parse HEAD)
+              if [ "$LOCAL" != "$NEW_LOCAL" ]; then
+                git push origin main
+                echo "updated=true" >> $GITHUB_OUTPUT
+                echo "commit_sha=$NEW_LOCAL" >> $GITHUB_OUTPUT
+                echo "✅ Auto-synced code files to main"
 
-            PYPROJECT_CHANGED=$(echo "$UPSTREAM_CHANGES" | grep -E "^pyproject\.toml$" || true)
-
-            if [ -n "$SETUP_CHANGED" ] || [ -n "$PYPROJECT_CHANGED" ]; then
-              echo "⚠️ setup.py/pyproject.toml changed upstream - needs manual review"
-              EXCLUDED_CHANGED=""
-              [ -n "$SETUP_CHANGED" ] && EXCLUDED_CHANGED="setup.py"
-              [ -n "$PYPROJECT_CHANGED" ] && EXCLUDED_CHANGED="${EXCLUDED_CHANGED:+$EXCLUDED_CHANGED\n}pyproject.toml"
-              if [ -z "$MANUAL_REVIEW" ]; then
-                MANUAL_REVIEW="$EXCLUDED_CHANGED"
+                # Mirror to dev branch to keep them in sync
+                if git push origin HEAD:refs/heads/dev 2>&1; then
+                  echo "✅ Also updated dev branch"
+                else
+                  echo "::warning::Failed to mirror sync commit to dev branch"
+                fi
               else
-                MANUAL_REVIEW=$(echo -e "${EXCLUDED_CHANGED}\n${MANUAL_REVIEW}")
+                echo "updated=false" >> $GITHUB_OUTPUT
               fi
-            fi
-
-            if [ -n "$MANUAL_REVIEW" ]; then
-              echo "⚠️ These files changed but need manual review:"
-              echo "$MANUAL_REVIEW"
-              echo "manual_review_needed=true" >> $GITHUB_OUTPUT
-              echo "manual_review_files<<EOF" >> $GITHUB_OUTPUT
-              echo "$MANUAL_REVIEW" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
             fi
           else
-            echo "✅ Already up to date with upstream"
+            echo "ℹ️ No auto-syncable files changed"
             echo "updated=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload diff artifact
+          # Foundation files (locally maintained) — high-priority notify.
+          if [ -n "$FOUNDATION_CHANGED" ]; then
+            echo "🚨 Foundation files changed upstream - review for cherry-pick:"
+            echo "$FOUNDATION_CHANGED"
+            {
+              echo "foundation_changes_detected=true"
+              echo "foundation_changed_files<<EOF"
+              while IFS= read -r f; do
+                [ -z "$f" ] && continue
+                STAT=$(git diff --stat HEAD upstream/master -- "$f" | head -1)
+                echo "${STAT:-$f}"
+              done <<< "$FOUNDATION_CHANGED"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+
+            mkdir -p /tmp/sync-artifacts
+            {
+              while IFS= read -r f; do
+                [ -z "$f" ] && continue
+                git diff HEAD upstream/master -- "$f"
+              done <<< "$FOUNDATION_CHANGED"
+            } > /tmp/sync-artifacts/foundation-diff.patch
+          fi
+
+          # General manual-review bucket.
+          MANUAL_REVIEW=$(echo "$UPSTREAM_CHANGES" \
+            | grep -vE "$AUTO_SYNC_PATTERN" \
+            | grep -vE "$EXCLUDE_PATTERN" \
+            | grep -vE "$IGNORE_PATTERN" || true)
+
+          if [ -n "$MANUAL_REVIEW" ]; then
+            echo "⚠️ These files changed but need manual review:"
+            echo "$MANUAL_REVIEW"
+            {
+              echo "manual_review_needed=true"
+              echo "manual_review_files<<EOF"
+              echo "$MANUAL_REVIEW"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          fi
+
+          # Advance the baseline so subsequent runs don't re-alert about the
+          # same upstream commits. The user was notified (or auto-sync ran);
+          # next signal should be a new upstream advance.
+          git tag -f last-synced-upstream "$UPSTREAM_NOW"
+          git push origin "refs/tags/last-synced-upstream" --force
+
+      - name: Upload sync diff artifact
         if: steps.sync.outputs.updated == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: upstream-diff
           path: /tmp/sync-artifacts/upstream-diff.patch
+          retention-days: 30
+
+      - name: Upload foundation-file diff artifact
+        if: steps.sync.outputs.foundation_changes_detected == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: foundation-diff
+          path: /tmp/sync-artifacts/foundation-diff.patch
           retention-days: 30
 
       - name: Build notification description
@@ -212,18 +259,17 @@ jobs:
           UPDATED: ${{ steps.sync.outputs.updated }}
           MANUAL_REVIEW_NEEDED: ${{ steps.sync.outputs.manual_review_needed }}
           MANUAL_REVIEW_FILES: ${{ steps.sync.outputs.manual_review_files }}
-          DELETED_FILES_DETECTED: ${{ steps.sync.outputs.deleted_files_detected }}
-          DELETED_FILES: ${{ steps.sync.outputs.deleted_files }}
+          FOUNDATION_DETECTED: ${{ steps.sync.outputs.foundation_changes_detected }}
+          FOUNDATION_FILES: ${{ steps.sync.outputs.foundation_changed_files }}
           DIFF_STATS: ${{ steps.sync.outputs.diff_stats }}
           SYNCED_FILES: ${{ steps.sync.outputs.synced_files }}
         run: |
-          # Start building description
           echo "description<<EOF" >> $GITHUB_OUTPUT
 
           if [ "$SYNC_STATUS" == "failure" ]; then
             echo "Error during upstream sync." >> $GITHUB_OUTPUT
           elif [ "$UPDATED" == "true" ]; then
-            echo "Successfully synced code files from upstream and pushed to main and dev branches." >> $GITHUB_OUTPUT
+            echo "Successfully synced code files from upstream to main and dev branches." >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
             if [ -n "$SYNCED_FILES" ]; then
               echo "**Synced Files:**" >> $GITHUB_OUTPUT
@@ -238,32 +284,30 @@ jobs:
               echo '```' >> $GITHUB_OUTPUT
             fi
             echo "" >> $GITHUB_OUTPUT
-            echo "🔨 Docker build will be triggered automatically by the push to main/dev." >> $GITHUB_OUTPUT
-            echo "📎 Full diff available as workflow artifact." >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "🔒 Some files excluded from auto-sync (maintained separately)." >> $GITHUB_OUTPUT
-            echo "🔎 [View full upstream diff](https://github.com/${{ github.repository }}/compare/main...walkrflocka:orpheusmorebetter:master)" >> $GITHUB_OUTPUT
+            echo "🔨 Docker build triggered by push to main/dev." >> $GITHUB_OUTPUT
+            echo "📎 Diff: \`upstream-diff\` artifact." >> $GITHUB_OUTPUT
           else
-            echo "Checked upstream repository - already up to date." >> $GITHUB_OUTPUT
+            echo "Checked upstream - already up to date on auto-syncable files." >> $GITHUB_OUTPUT
+          fi
+
+          # High-priority: upstream changed a file we maintain locally.
+          # Render prominently with per-file stats so review can happen from Discord.
+          if [ "$FOUNDATION_DETECTED" == "true" ]; then
             echo "" >> $GITHUB_OUTPUT
-            echo "No sync or build required." >> $GITHUB_OUTPUT
+            echo "🚨 **Foundation file(s) changed upstream — review for cherry-pick**" >> $GITHUB_OUTPUT
+            echo "These files are kept locally divergent; upstream improvements do **not** flow in automatically." >> $GITHUB_OUTPUT
+            echo '```' >> $GITHUB_OUTPUT
+            echo "$FOUNDATION_FILES" >> $GITHUB_OUTPUT
+            echo '```' >> $GITHUB_OUTPUT
+            echo "📎 Diff: \`foundation-diff\` artifact." >> $GITHUB_OUTPUT
+            echo "🔎 [View upstream diff](https://github.com/${{ github.repository }}/compare/main...walkrflocka:orpheusmorebetter:master)" >> $GITHUB_OUTPUT
           fi
 
           if [ "$MANUAL_REVIEW_NEEDED" == "true" ]; then
             echo "" >> $GITHUB_OUTPUT
-            echo "**Manual Review Required**" >> $GITHUB_OUTPUT
-            echo "Some files changed but need your review:" >> $GITHUB_OUTPUT
+            echo "ℹ️ **Other files changed upstream (manual review)**" >> $GITHUB_OUTPUT
             echo '```' >> $GITHUB_OUTPUT
             echo "$MANUAL_REVIEW_FILES" >> $GITHUB_OUTPUT
-            echo '```' >> $GITHUB_OUTPUT
-          fi
-
-          if [ "$DELETED_FILES_DETECTED" == "true" ]; then
-            echo "" >> $GITHUB_OUTPUT
-            echo "**Files Deleted Upstream**" >> $GITHUB_OUTPUT
-            echo "These files/directories were deleted and need manual removal:" >> $GITHUB_OUTPUT
-            echo '```' >> $GITHUB_OUTPUT
-            echo "$DELETED_FILES" >> $GITHUB_OUTPUT
             echo '```' >> $GITHUB_OUTPUT
           fi
 
@@ -286,10 +330,21 @@ jobs:
 
   log-sync:
     needs: sync
-    if: always() && (needs.sync.result == 'failure' || needs.sync.outputs.manual_review_needed == 'true' || needs.sync.outputs.deleted_files_detected == 'true')
+    if: >-
+      always() && (
+        needs.sync.result == 'failure'
+        || needs.sync.outputs.foundation_changes_detected == 'true'
+        || needs.sync.outputs.manual_review_needed == 'true'
+      )
     uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@bac8ae59708d42e8c3cd277fe1740164d0ec3ce0 # main
     with:
       event_type: sync
       status: ${{ needs.sync.result == 'failure' && 'failure' || 'warning' }}
-      title: ${{ needs.sync.result == 'failure' && '❌ Upstream sync failed' || '⚠️ Upstream sync needs attention' }}
+      title: >-
+        ${{
+          needs.sync.result == 'failure' && '❌ Upstream sync failed'
+          || (needs.sync.outputs.foundation_changes_detected == 'true' && '🚨 Upstream changed a foundation file')
+          || '⚠️ Upstream sync needs attention'
+        }}
+      description: ${{ needs.sync.outputs.notification_description }}
     secrets: inherit
