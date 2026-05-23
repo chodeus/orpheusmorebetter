@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.2](https://github.com/chodeus/orpheusmorebetter/compare/v1.1.1...v1.1.2) (2026-05-23)
+
+
+### Bug Fixes
+
+* **deps:** update dependency lxml to &gt;=6.1.1,&lt;7.0.0 ([#78](https://github.com/chodeus/orpheusmorebetter/issues/78)) ([98c91a8](https://github.com/chodeus/orpheusmorebetter/commit/98c91a8b82d51c87737ef605e6303d796ff6fced))
+* **deps:** update dependency pydantic to &gt;=2.13.3,&lt;3.0.0 ([#64](https://github.com/chodeus/orpheusmorebetter/issues/64)) ([0247488](https://github.com/chodeus/orpheusmorebetter/commit/024748819722d8ca7f036b9129ce4b030c6d6511))
+* **deps:** update dependency pydantic to &gt;=2.13.4,&lt;3.0.0 ([#69](https://github.com/chodeus/orpheusmorebetter/issues/69)) ([aed2171](https://github.com/chodeus/orpheusmorebetter/commit/aed217117d02ad069633af6c90339795de5cc9e9))
+* **deps:** update dependency requests to &gt;=2.34.2,&lt;3.0.0 ([#76](https://github.com/chodeus/orpheusmorebetter/issues/76)) ([9bc372d](https://github.com/chodeus/orpheusmorebetter/commit/9bc372d11872358ae5c85f19ee33dbd85d8fff2f))
+* **sync:** baseline tag must point at HEAD, not upstream commit ([8b3c735](https://github.com/chodeus/orpheusmorebetter/commit/8b3c7355137330aa28da6c39fae7e056521d6845))
+
 ## [1.1.1](https://github.com/chodeus/orpheusmorebetter/compare/v1.1.0...v1.1.1) (2026-04-24)
 
 
