@@ -88,6 +88,7 @@ COPY models/ ./models/
 COPY services/ ./services/
 
 RUN chmod +x /app/orpheusmorebetter /app/start.sh \
+    && chmod -R a+rX /app \
     && mkdir -p /config/.orpheusmorebetter
 
 ARG VERSION=dev
@@ -109,7 +110,7 @@ LABEL org.opencontainers.image.title="OrpheusMoreBetter" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.licenses="GPL-3.0" \
-      org.opencontainers.image.base.name="python:3.14.3-alpine" \
+      org.opencontainers.image.base.name="python:3.14.5-alpine" \
       build.number="${BUILD_NUMBER}"
 
 ENV PUID=99 \
@@ -124,8 +125,11 @@ ENV PUID=99 \
 
 VOLUME ["/config"]
 
+# pgrep tini: tini is always PID 1 whether the container is idle (tail -f)
+# or actively running the python entrypoint, so this stays healthy in both
+# modes. Previous `pgrep -f orpheusmorebetter` flapped unhealthy in idle.
 HEALTHCHECK --interval=120s --timeout=10s --start-period=30s --retries=3 \
-  CMD pgrep -f "orpheusmorebetter" > /dev/null || exit 1
+  CMD pgrep tini > /dev/null || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--", "/app/start.sh"]
 CMD []

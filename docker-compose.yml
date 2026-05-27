@@ -19,6 +19,15 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # The entrypoint briefly runs as root to remap PUID/PGID and chown
+    # /config before dropping privileges via su-exec. Without these caps,
+    # cap_drop:ALL above would break the user-switch and chown steps.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
     deploy:
       resources:
         limits:

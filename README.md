@@ -185,6 +185,15 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # The entrypoint briefly runs as root to remap PUID/PGID and chown
+    # /config before dropping privileges via su-exec. Without these caps,
+    # cap_drop:ALL above would break the user-switch and chown steps.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
     deploy:
       resources:
         limits:
@@ -305,10 +314,48 @@ If the container complains about missing config:
 
 ## Security Notes
 
-- Container briefly runs as root to set up user/permissions, then drops privileges
+- Container briefly runs as root to set up user/permissions, then drops privileges via `su-exec`
 - Defaults to `99:100` (`nobody:users` on Unraid)
 - Credentials are stored in **plaintext** config files — protect `/config` directory
 - Avoid setting `PUID=0` unless you understand the security implications
+
+### Capability hardening (recommended)
+
+The included `docker-compose.yml` already drops every capability and grants
+back only the five the entrypoint actually needs (`CHOWN`, `SETUID`, `SETGID`,
+`FOWNER`, `DAC_OVERRIDE`) plus `no-new-privileges`. Even during the brief
+root window at startup, the container has no `NET_RAW`, `SYS_ADMIN`, mount,
+or module-loading powers. Keep that block when adapting the compose file.
+
+### Rootless alternative
+
+If you'd rather the container never run as root at all, replace the
+`PUID`/`PGID` env vars with `user: "99:100"` (or whatever uid:gid owns your
+appdata) and pre-`chown` the host `./config` dir to match:
+
+```bash
+mkdir -p ./config && sudo chown -R 99:100 ./config
+```
+
+Then drop the env vars and use `user:` instead:
+
+```yaml
+    user: "99:100"
+    environment:
+      - UMASK=002
+      - TZ=America/Los_Angeles
+```
+
+The entrypoint detects non-root invocation and skips the chown/usermod
+steps. The convenience `orpheusmorebetter` wrapper isn't installed in
+this mode (writing to `/usr/local/bin` requires root) — invoke the
+python script directly instead:
+
+```bash
+docker exec -it orpheusmorebetter python3 /app/orpheusmorebetter --help
+```
+
+PUID/PGID is the easier default; `--user` is the hardened option.
 
 ---
 
