@@ -1,4 +1,4 @@
-FROM python:3.14.6-alpine@sha256:003970a263347645cd23d4f90929ad16ba7ce7d808ee4674ffcc93cb21cc289f AS builder
+FROM python:3.14.6-alpine@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92 AS builder
 
 RUN apk add --no-cache \
     gcc \
@@ -20,7 +20,7 @@ COPY orpheusmorebetter ./
 
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
 
-FROM python:3.14.6-alpine@sha256:003970a263347645cd23d4f90929ad16ba7ce7d808ee4674ffcc93cb21cc289f AS flac-builder
+FROM python:3.14.6-alpine@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92 AS flac-builder
 
 ARG FLAC_VERSION=1.5.0
 ARG FLAC_SHA256=f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920
@@ -35,7 +35,7 @@ RUN apk add --no-cache build-base libogg-dev xz \
     && make install DESTDIR=/artifacts \
     && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete
 
-FROM python:3.14.6-alpine@sha256:003970a263347645cd23d4f90929ad16ba7ce7d808ee4674ffcc93cb21cc289f AS sox-builder
+FROM python:3.14.6-alpine@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92 AS sox-builder
 
 ARG SOX_NG_VERSION=14.7.1
 ARG SOX_NG_SHA256=255872ac397213d330f4633871b697d70e86242dff95d66016555a45ef1c58a1
@@ -53,7 +53,7 @@ RUN apk add --no-cache build-base libogg-dev pkgconf \
     && find /artifacts -type f \( -name "*.a" -o -name "*.la" \) -delete \
     && rm -rf /artifacts/usr/include /artifacts/usr/lib/pkgconfig
 
-FROM python:3.14.6-alpine@sha256:003970a263347645cd23d4f90929ad16ba7ce7d808ee4674ffcc93cb21cc289f
+FROM python:3.14.6-alpine@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
 
 COPY --from=flac-builder /artifacts/usr/bin/ /usr/bin/
 COPY --from=flac-builder /artifacts/usr/lib/ /usr/lib/
