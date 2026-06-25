@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.3](https://github.com/chodeus/orpheusmorebetter/compare/v1.1.2...v1.1.3) (2026-06-25)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#90](https://github.com/chodeus/orpheusmorebetter/issues/90)) ([dc1aaa2](https://github.com/chodeus/orpheusmorebetter/commit/dc1aaa2925c5f9a2a0381d72d31cd0173fee22f4))
+* **docker:** unbreak cap_drop compose example and add rootless --user support ([2cd1c2b](https://github.com/chodeus/orpheusmorebetter/commit/2cd1c2b03666ca74a97a18f204279301fe954f97))
+
 ## [1.1.2](https://github.com/chodeus/orpheusmorebetter/compare/v1.1.1...v1.1.2) (2026-05-23)
 
 
