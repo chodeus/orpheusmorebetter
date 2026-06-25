@@ -346,7 +346,7 @@ jobs:
         || needs.sync.outputs.foundation_changes_detected == 'true'
         || needs.sync.outputs.manual_review_needed == 'true'
       )
-    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@2a3661ac2b92d2da482640228e5202486550656f # main
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@44b9463f55b6d28ca72a126bdc3a89ce6b472166 # main
     with:
       event_type: sync
       status: ${{ needs.sync.result == 'failure' && 'failure' || 'warning' }}
