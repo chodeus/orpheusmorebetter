@@ -1,6 +1,6 @@
 services:
   orpheusmorebetter:
-    image: ghcr.io/chodeus/orpheusmorebetter:main@sha256:2144337f0bab5e4045194e8dda024ef5dd122768395082214ef8b29b2201924b
+    image: ghcr.io/chodeus/orpheusmorebetter:main@sha256:0cf76f3b2ca0d055f0e457e774285539ff0c0dd2a60cc5424f7c528f9139ab0e
     container_name: orpheusmorebetter
     hostname: orpheusmorebetter
     stdin_open: true
